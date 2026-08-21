@@ -612,16 +612,6 @@
   /* --- Dropdown: bra att veta, oklarheter --- */
 
   details.group,
-  details.unclear {
-    padding: 0.35rem 0.7rem;
-  }
-
-  details.unclear {
-    background: var(--surface);
-    border-radius: var(--r);
-    color: var(--ink-soft);
-  }
-
   details summary {
     display: flex;
     align-items: center;
@@ -673,9 +663,20 @@
     padding-bottom: 0.3rem;
   }
 
-  details.unclear p {
-    font-size: var(--fs-small);
-    margin: 0.3rem 0;
+  /* En låda ska gå att överblicka: en rad per sak, inget annat. */
+  details.group li {
+    padding: 0.28rem 0;
+  }
+
+  details.group .note,
+  details.group .tag-kind,
+  details.group .rel {
+    display: none;
+  }
+
+  details.group .what {
+    font-weight: 400;
+    color: var(--ink-soft);
   }
 
   /* --- Gemensamt: gäller båda barnen --- */

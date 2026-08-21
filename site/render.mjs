@@ -158,6 +158,21 @@ function bucketOf(item) {
 
 // --- Poster --------------------------------------------------------------
 
+/** Rad i en fällbar låda: bara texten och datumet. Ingen etikett, ingen not. */
+function plainMarkup(item) {
+  const k = key(item.sv.text, item.fi.text, "i");
+  let when = "";
+  if (item.date) {
+    const l = dateLabels(item.date);
+    const wk = key(item.sv.dateLabel || l.sv, item.fi.dateLabel || l.fi, "w");
+    when = `<span class="meta"><span class="when" data-t="${wk}">${esc(item.sv.dateLabel || l.sv)}</span></span>`;
+  }
+  return (
+    `<li data-kind="${esc(item.kind)}"${item.date ? ` data-date="${esc(item.date)}"` : ""}>` +
+    `<span class="what" data-t="${k}">${esc(item.sv.text)}</span>${when}</li>`
+  );
+}
+
 function itemMarkup(item) {
   const k = key(item.sv.text, item.fi.text, "i");
 
@@ -240,6 +255,8 @@ function dayHeadMarkup(iso) {
 
 /** Tak på veckan: sidan finns för att vara kort. Resten hamnar i dropdownen. */
 const WEEK_LIMIT = 4;
+/** Tak på lådorna. Utan tak blir de en andra sida i stället för ett uppslag. */
+const DRAWER_LIMIT = 6;
 
 function childMarkup(child, first) {
   const buckets = { week: [], booking: [], laxor: [], later: [], exams: [], info: [] };
@@ -259,12 +276,15 @@ function childMarkup(child, first) {
     buckets.week.push(itemMarkup(item));
   }
 
+  // Lådorna får enkla rader; veckan, prov och framåt behåller etiketterna.
   items.forEach((item) => {
     const bucket = bucketOf(item);
     if (bucket === "past" || bucket === "week") return;
-    buckets[bucket].push(itemMarkup(item));
+    buckets[bucket].push(bucket === "info" || bucket === "laxor" ? plainMarkup(item) : itemMarkup(item));
   });
-  for (const item of overflow) buckets.info.push(itemMarkup(item));
+  for (const item of overflow) buckets.info.push(plainMarkup(item));
+  buckets.info = buckets.info.slice(0, DRAWER_LIMIT);
+  buckets.laxor = buckets.laxor.slice(0, DRAWER_LIMIT);
   child.exams.forEach((exam) => buckets.exams.push(examItem(exam)));
 
   // hidden som standard: JS visar den som stämmer. Tvärtom gav två motsägande
@@ -302,18 +322,6 @@ function childMarkup(child, first) {
         `        <ul>${buckets.info.join("")}</ul>\n` +
         `      </details>`;
 
-  const unclear = child.uncertain.length
-    ? `      <details class="unclear">\n        <summary>${text(
-        "span",
-        "glabel",
-        "Oklart",
-        "Epäselvää",
-        "u",
-      )} <span class="count">${child.uncertain.length}</span></summary>\n` +
-      child.uncertain.map((u) => `        ${text("p", "", u.sv, u.fi, "u")}`).join("\n") +
-      `\n      </details>`
-    : "";
-
   return [
     `    <section class="kid" data-kid="${esc(child.slug)}"${first ? "" : " hidden"}>`,
     `      <h2 class="sr-only">${esc(child.name)}</h2>`,
@@ -324,7 +332,6 @@ function childMarkup(child, first) {
     group("exams", "Prov", "Kokeet", buckets.exams),
     laxorSection,
     infoSection,
-    unclear,
     `    </section>`,
   ]
     .filter(Boolean)

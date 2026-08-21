@@ -275,10 +275,12 @@ check("åldersvarningen är tyst i dag och syns efter tre dygn", () => {
 });
 
 check("relativa datum räknas om mot dagens datum", () => {
-  const w = open("2026-08-23");
+  // Måste vara en rad i veckan: lådornas rader visar med flit ingen relativ text.
+  const w = open("2026-08-24");
   const rel = [...w.document.querySelectorAll(".rel[data-date]")].find(
-    (el) => el.dataset.date === "2026-08-24",
+    (el) => el.dataset.date === "2026-08-25",
   );
+  assert.ok(rel, "hittade ingen relativ etikett på en veckorad");
   assert.equal(rel.textContent, "imorgon", `fick "${rel.textContent}"`);
 });
 

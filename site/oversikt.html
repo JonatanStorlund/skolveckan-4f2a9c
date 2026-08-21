@@ -621,16 +621,6 @@
   /* --- Dropdown: bra att veta, oklarheter --- */
 
   details.group,
-  details.unclear {
-    padding: 0.35rem 0.7rem;
-  }
-
-  details.unclear {
-    background: var(--surface);
-    border-radius: var(--r);
-    color: var(--ink-soft);
-  }
-
   details summary {
     display: flex;
     align-items: center;
@@ -682,9 +672,20 @@
     padding-bottom: 0.3rem;
   }
 
-  details.unclear p {
-    font-size: var(--fs-small);
-    margin: 0.3rem 0;
+  /* En låda ska gå att överblicka: en rad per sak, inget annat. */
+  details.group li {
+    padding: 0.28rem 0;
+  }
+
+  details.group .note,
+  details.group .tag-kind,
+  details.group .rel {
+    display: none;
+  }
+
+  details.group .what {
+    font-weight: 400;
+    color: var(--ink-soft);
   }
 
   /* --- Gemensamt: gäller båda barnen --- */
@@ -794,26 +795,26 @@
       <h2 class="sr-only">Colin</h2>
       <p class="where">Oxhamns skola · 7A</p>
       <section class="group" data-group="week">
-        <h3 class="glabel" data-t="g18">Närmaste veckan</h3>
+        <h3 class="glabel" data-t="g15">Närmaste veckan</h3>
         <ul></ul>
-        <p class="empty" data-t="g15">Inget på gång den närmaste veckan</p>
-        <p class="empty shared-hint" data-t="g16" hidden>Inget eget den här veckan — se Gäller båda längst ner</p>
+        <p class="empty" data-t="g12">Inget på gång den närmaste veckan</p>
+        <p class="empty shared-hint" data-t="g13" hidden>Inget eget den här veckan — se Gäller båda längst ner</p>
       </section>
       <section class="group" data-group="booking" hidden>
-        <h3 class="glabel" data-t="g19">Boka tid</h3>
+        <h3 class="glabel" data-t="g16">Boka tid</h3>
         <ul></ul>
       </section>
       <section class="group" data-group="later" hidden>
-        <h3 class="glabel" data-t="g20">Viktiga datum</h3>
+        <h3 class="glabel" data-t="g17">Viktiga datum</h3>
         <ul></ul>
       </section>
       <section class="group" data-group="exams">
-        <h3 class="glabel" data-t="g21">Prov</h3>
-        <ul><li data-kind="prov" data-date="2026-10-07"><span class="what" data-t="e11">Matematik</span><span class="meta"><span class="when" data-t="w12">ons 7.10</span><span class="rel" data-date="2026-10-07"></span></span></li><li data-kind="prov" data-date="2026-11-02"><span class="what" data-t="e13">Fysik</span><span class="meta"><span class="when" data-t="w14">mån 2.11</span><span class="rel" data-date="2026-11-02"></span></span></li></ul>
+        <h3 class="glabel" data-t="g18">Prov</h3>
+        <ul><li data-kind="prov" data-date="2026-10-07"><span class="what" data-t="e8">Matematik</span><span class="meta"><span class="when" data-t="w9">ons 7.10</span><span class="rel" data-date="2026-10-07"></span></span></li><li data-kind="prov" data-date="2026-11-02"><span class="what" data-t="e10">Fysik</span><span class="meta"><span class="when" data-t="w11">mån 2.11</span><span class="rel" data-date="2026-11-02"></span></span></li></ul>
       </section>
       <details class="group" data-group="info">
-        <summary><span class="glabel" data-t="g17">Bra att veta</span> <span class="count">2</span></summary>
-        <ul><li data-kind="deadline"><span class="what" data-t="i6">Gör dietanmälan på nytt</span><span class="meta"><span class="tag-kind" data-tag="do" data-t="tag7">Deadline</span></span><p class="note" data-t="n8">Gäller även er som anmält tidigare år.</p></li><li data-kind="info"><span class="what" data-t="i9">Mobiler samlas in under första lektionen</span><span class="meta"><span class="tag-kind" data-tag="info" data-t="tag10">Info</span></span></li></ul>
+        <summary><span class="glabel" data-t="g14">Bra att veta</span> <span class="count">2</span></summary>
+        <ul><li data-kind="deadline"><span class="what" data-t="i6">Gör dietanmälan på nytt</span></li><li data-kind="info"><span class="what" data-t="i7">Mobiler samlas in under första lektionen</span></li></ul>
       </details>
     </section>
 
@@ -821,37 +822,33 @@
       <h2 class="sr-only">Nellie</h2>
       <p class="where">Bonäs skola · 2b</p>
       <section class="group" data-group="week">
-        <h3 class="glabel" data-t="g42">Närmaste veckan</h3>
-        <ul><li class="dayhead" data-prox="week" data-t="d22">tis 25.8<span class="dayrel" data-state="week" data-t="d23">om 4 dagar</span></li><li data-kind="ta_med" data-date="2026-08-25"><span class="what" data-t="i24">Utekläder och skor — gympan blir promenad</span><span class="meta"><span class="when" data-t="w25">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="bring" data-t="tag26">Ta med</span></span><p class="note" data-t="n27">Ombyteskläder behövs inte.</p></li></ul>
-        <p class="empty" data-t="g37" hidden>Inget på gång den närmaste veckan</p>
-        <p class="empty shared-hint" data-t="g38" hidden>Inget eget den här veckan — se Gäller båda längst ner</p>
+        <h3 class="glabel" data-t="g35">Närmaste veckan</h3>
+        <ul><li class="dayhead" data-prox="week" data-t="d19">tis 25.8<span class="dayrel" data-state="week" data-t="d20">om 4 dagar</span></li><li data-kind="ta_med" data-date="2026-08-25"><span class="what" data-t="i21">Utekläder och skor — gympan blir promenad</span><span class="meta"><span class="when" data-t="w22">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="bring" data-t="tag23">Ta med</span></span><p class="note" data-t="n24">Ombyteskläder behövs inte.</p></li></ul>
+        <p class="empty" data-t="g32" hidden>Inget på gång den närmaste veckan</p>
+        <p class="empty shared-hint" data-t="g33" hidden>Inget eget den här veckan — se Gäller båda längst ner</p>
       </section>
       <section class="group" data-group="booking" hidden>
-        <h3 class="glabel" data-t="g43">Boka tid</h3>
+        <h3 class="glabel" data-t="g36">Boka tid</h3>
         <ul></ul>
       </section>
       <section class="group" data-group="later">
-        <h3 class="glabel" data-t="g44">Viktiga datum</h3>
-        <ul><li data-kind="evenemang" data-date="2026-09-10"><span class="what" data-t="i34">Skolfotografering</span><span class="meta"><span class="when" data-t="w35">tor–fre 10–11.9</span><span class="rel" data-date="2026-09-10"></span><span class="tag-kind" data-tag="event" data-t="tag36">Händelse</span></span></li></ul>
+        <h3 class="glabel" data-t="g37">Viktiga datum</h3>
+        <ul><li data-kind="evenemang" data-date="2026-09-10"><span class="what" data-t="i29">Skolfotografering</span><span class="meta"><span class="when" data-t="w30">tor–fre 10–11.9</span><span class="rel" data-date="2026-09-10"></span><span class="tag-kind" data-tag="event" data-t="tag31">Händelse</span></span></li></ul>
       </section>
       <section class="group" data-group="exams" hidden>
-        <h3 class="glabel" data-t="g45">Prov</h3>
+        <h3 class="glabel" data-t="g38">Prov</h3>
         <ul></ul>
       </section>
       <details class="group" data-group="laxor">
-        <summary><span class="glabel" data-t="g39">Läxor</span> <span class="count">2</span></summary>
-        <ul><li data-kind="laxa" data-date="2026-08-24"><span class="what" data-t="i28">Matematik: Kom ihåg s. 27</span><span class="meta"><span class="when" data-t="w29">mån 24.8</span><span class="rel" data-date="2026-08-24"></span><span class="tag-kind" data-tag="home" data-t="tag30">Läxa</span></span></li><li data-kind="laxa" data-date="2026-08-25"><span class="what" data-t="i31">Läsläxa: Hemligheten kap. 2, s. 6–7</span><span class="meta"><span class="when" data-t="w32">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="home" data-t="tag33">Läxa</span></span></li></ul>
-      </details>
-      <details class="unclear">
-        <summary><span class="glabel" data-t="u40">Oklart</span> <span class="count">1</span></summary>
-        <p data-t="u41">Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.</p>
+        <summary><span class="glabel" data-t="g34">Läxor</span> <span class="count">2</span></summary>
+        <ul><li data-kind="laxa" data-date="2026-08-24"><span class="what" data-t="i25">Matematik: Kom ihåg s. 27</span><span class="meta"><span class="when" data-t="w26">mån 24.8</span></span></li><li data-kind="laxa" data-date="2026-08-25"><span class="what" data-t="i27">Läsläxa: Hemligheten kap. 2, s. 6–7</span><span class="meta"><span class="when" data-t="w28">tis 25.8</span></span></li></ul>
       </details>
     </section>
   </div>
 
   <section class="shared">
-    <p class="tag" data-t="s50">Gäller båda</p>
-    <ul><li data-kind="andrad_tid" data-date="2026-08-25"><span class="what" data-t="s46">Skoldagen slutar kl. 12.15</span><span class="meta"><span class="when" data-t="w47">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="time" data-t="tag48">Tid</span></span><p class="note" data-t="n49">Eftis fungerar normalt.</p></li></ul>
+    <p class="tag" data-t="s43">Gäller båda</p>
+    <ul><li data-kind="andrad_tid" data-date="2026-08-25"><span class="what" data-t="s39">Skoldagen slutar kl. 12.15</span><span class="meta"><span class="when" data-t="w40">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="time" data-t="tag41">Tid</span></span><p class="note" data-t="n42">Eftis fungerar normalt.</p></li></ul>
   </section>
 </div>
 
@@ -867,50 +864,43 @@
         hdr4: "0 källor kunde inte läsas och har getts upp — kolla Wilma själv.",
         hdr5: "Sidan har inte uppdaterats på flera dygn — körningen kan ha slutat fungera.",
         i6: "Gör dietanmälan på nytt",
-        tag7: "Deadline",
-        n8: "Gäller även er som anmält tidigare år.",
-        i9: "Mobiler samlas in under första lektionen",
-        tag10: "Info",
-        e11: "Matematik",
-        w12: "ons 7.10",
-        e13: "Fysik",
-        w14: "mån 2.11",
-        g15: "Inget på gång den närmaste veckan",
-        g16: "Inget eget den här veckan — se Gäller båda längst ner",
-        g17: "Bra att veta",
-        g18: "Närmaste veckan",
-        g19: "Boka tid",
-        g20: "Viktiga datum",
-        g21: "Prov",
-        d22: "tis 25.8",
-        d23: "om 4 dagar",
-        i24: "Utekläder och skor — gympan blir promenad",
-        w25: "tis 25.8",
-        tag26: "Ta med",
-        n27: "Ombyteskläder behövs inte.",
-        i28: "Matematik: Kom ihåg s. 27",
-        w29: "mån 24.8",
-        tag30: "Läxa",
-        i31: "Läsläxa: Hemligheten kap. 2, s. 6–7",
-        w32: "tis 25.8",
-        tag33: "Läxa",
-        i34: "Skolfotografering",
-        w35: "tor–fre 10–11.9",
-        tag36: "Händelse",
-        g37: "Inget på gång den närmaste veckan",
-        g38: "Inget eget den här veckan — se Gäller båda längst ner",
-        g39: "Läxor",
-        u40: "Oklart",
-        u41: "Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.",
-        g42: "Närmaste veckan",
-        g43: "Boka tid",
-        g44: "Viktiga datum",
-        g45: "Prov",
-        s46: "Skoldagen slutar kl. 12.15",
-        w47: "tis 25.8",
-        tag48: "Tid",
-        n49: "Eftis fungerar normalt.",
-        s50: "Gäller båda",
+        i7: "Mobiler samlas in under första lektionen",
+        e8: "Matematik",
+        w9: "ons 7.10",
+        e10: "Fysik",
+        w11: "mån 2.11",
+        g12: "Inget på gång den närmaste veckan",
+        g13: "Inget eget den här veckan — se Gäller båda längst ner",
+        g14: "Bra att veta",
+        g15: "Närmaste veckan",
+        g16: "Boka tid",
+        g17: "Viktiga datum",
+        g18: "Prov",
+        d19: "tis 25.8",
+        d20: "om 4 dagar",
+        i21: "Utekläder och skor — gympan blir promenad",
+        w22: "tis 25.8",
+        tag23: "Ta med",
+        n24: "Ombyteskläder behövs inte.",
+        i25: "Matematik: Kom ihåg s. 27",
+        w26: "mån 24.8",
+        i27: "Läsläxa: Hemligheten kap. 2, s. 6–7",
+        w28: "tis 25.8",
+        i29: "Skolfotografering",
+        w30: "tor–fre 10–11.9",
+        tag31: "Händelse",
+        g32: "Inget på gång den närmaste veckan",
+        g33: "Inget eget den här veckan — se Gäller båda längst ner",
+        g34: "Läxor",
+        g35: "Närmaste veckan",
+        g36: "Boka tid",
+        g37: "Viktiga datum",
+        g38: "Prov",
+        s39: "Skoldagen slutar kl. 12.15",
+        w40: "tis 25.8",
+        tag41: "Tid",
+        n42: "Eftis fungerar normalt.",
+        s43: "Gäller båda",
       },
       fi: {
         hdr0: "Päivitetty 2026-08-21",
@@ -920,50 +910,43 @@
         hdr4: "0 lähdettä ei voitu lukea ja ne on hylätty — tarkista Wilma itse.",
         hdr5: "Sivua ei ole päivitetty useaan päivään — ajo voi olla rikki.",
         i6: "Tee ruokavalioilmoitus uudelleen",
-        tag7: "Määräaika",
-        n8: "Koskee myös aiemmin ilmoittaneita.",
-        i9: "Puhelimet kerätään ensimmäisellä tunnilla",
-        tag10: "Tieto",
-        e11: "Matematik",
-        w12: "ke 7.10.",
-        e13: "Fysik",
-        w14: "ma 2.11.",
-        g15: "Ei mitään lähimmän viikon aikana",
-        g16: "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
-        g17: "Hyvä tietää",
-        g18: "Lähin viikko",
-        g19: "Varaa aika",
-        g20: "Tärkeät päivät",
-        g21: "Kokeet",
-        d22: "ti 25.8.",
-        d23: "4 päivän päästä",
-        i24: "Ulkovaatteet ja kengät — liikunta on kävelyretki",
-        w25: "ti 25.8.",
-        tag26: "Mukaan",
-        n27: "Vaihtovaatteita ei tarvita.",
-        i28: "Matematiikka: Muista s. 27",
-        w29: "ma 24.8.",
-        tag30: "Läksy",
-        i31: "Lukuläksy: Hemligheten luku 2, s. 6–7",
-        w32: "ti 25.8.",
-        tag33: "Läksy",
-        i34: "Koulukuvaus",
-        w35: "to–pe 10.–11.9.",
-        tag36: "Tapahtuma",
-        g37: "Ei mitään lähimmän viikon aikana",
-        g38: "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
-        g39: "Läksyt",
-        u40: "Epäselvää",
-        u41: "Maanantain käsityön teema on omenat — epäselvää pitääkö kotoa ottaa jotain.",
-        g42: "Lähin viikko",
-        g43: "Varaa aika",
-        g44: "Tärkeät päivät",
-        g45: "Kokeet",
-        s46: "Koulupäivä päättyy klo 12.15",
-        w47: "ti 25.8.",
-        tag48: "Aika",
-        n49: "Iltapäivätoiminta toimii normaalisti.",
-        s50: "Koskee molempia",
+        i7: "Puhelimet kerätään ensimmäisellä tunnilla",
+        e8: "Matematik",
+        w9: "ke 7.10.",
+        e10: "Fysik",
+        w11: "ma 2.11.",
+        g12: "Ei mitään lähimmän viikon aikana",
+        g13: "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
+        g14: "Hyvä tietää",
+        g15: "Lähin viikko",
+        g16: "Varaa aika",
+        g17: "Tärkeät päivät",
+        g18: "Kokeet",
+        d19: "ti 25.8.",
+        d20: "4 päivän päästä",
+        i21: "Ulkovaatteet ja kengät — liikunta on kävelyretki",
+        w22: "ti 25.8.",
+        tag23: "Mukaan",
+        n24: "Vaihtovaatteita ei tarvita.",
+        i25: "Matematiikka: Muista s. 27",
+        w26: "ma 24.8.",
+        i27: "Lukuläksy: Hemligheten luku 2, s. 6–7",
+        w28: "ti 25.8.",
+        i29: "Koulukuvaus",
+        w30: "to–pe 10.–11.9.",
+        tag31: "Tapahtuma",
+        g32: "Ei mitään lähimmän viikon aikana",
+        g33: "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
+        g34: "Läksyt",
+        g35: "Lähin viikko",
+        g36: "Varaa aika",
+        g37: "Tärkeät päivät",
+        g38: "Kokeet",
+        s39: "Koulupäivä päättyy klo 12.15",
+        w40: "ti 25.8.",
+        tag41: "Aika",
+        n42: "Iltapäivätoiminta toimii normaalisti.",
+        s43: "Koskee molempia",
       },
     };
     const WORDS = {
