@@ -141,11 +141,29 @@ läst.
 gemensamt band för det som gick till hela kommunen, en spalt per barn, kryssrutor
 för det som går att göra klart.
 
-Publicerad här: https://claude.ai/code/artifact/438f4f44-9c9c-42d1-8360-6a873831eda0
+Två utgåvor av samma fil:
 
-Sidan är privat tills den delas från sidans egen delningsmeny. För att uppdatera
-den: ändra filen och publicera **samma filsökväg** igen — då byts innehållet på
-samma adress. En ny sökväg ger en ny adress.
+| Var | Adress | Åtkomst |
+| --- | --- | --- |
+| GitHub Pages | https://jonatanstorlund.github.io/skolveckan-4f2a9c/ | Publik, ingen inloggning |
+| claude.ai | https://claude.ai/code/artifact/438f4f44-9c9c-42d1-8360-6a873831eda0 | Privat tills den delas |
+
+Genero-arbetsytan tillåter inte "Anyone with the link" på artefakter, därför den
+publika utgåvan på GitHub Pages.
+
+### Uppdatera
+
+```bash
+node site/build.mjs   # site/oversikt.html -> dist/ som fristående dokument
+```
+
+Publicera sedan om **samma filsökväg** (`site/oversikt.html`) för artefakten, och
+pusha `dist/` till repot `skolveckan-4f2a9c` för den publika sidan. Båda behåller
+sina adresser, så delade länkar fortsätter fungera.
+
+`site/build.mjs` hissar upp `<title>`, `<link>` och `<style>` i ett `<head>` och
+lägger till `noindex` plus `robots.txt`. Sidan är publik men inte sökbar — vem som
+helst med länken kommer in, sökmotorer ska hålla sig borta.
 
 Två saker som håller sidan hederlig när den blir gammal: relativa dagar ("om 4
 dagar") räknas i webbläsaren utifrån `data-date`, och förbrukade tider tas bort i
