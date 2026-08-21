@@ -1,0 +1,24 @@
+#!/bin/sh
+# Startar Wilma-MCP-servern med lösenordet hämtat ur macOS-nyckelringen, så att
+# det aldrig ligger i klartext i .env, .mcp.json eller git.
+#
+# Lägg in lösenordet en gång:
+#   security add-generic-password -s wilma-tldr -a DITT_ANVÄNDARNAMN -w
+set -eu
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+
+: "${WILMA_BASE_URL:=https://jakobstad.inschool.fi}"
+if [ -z "${WILMA_USERNAME:-}" ]; then
+  echo "wilma-mcp: WILMA_USERNAME är inte satt (sätts i .mcp.json)." >&2
+  exit 78
+fi
+
+if ! WILMA_PASSWORD="$(security find-generic-password -s wilma-tldr -a "$WILMA_USERNAME" -w 2>/dev/null)"; then
+  echo "wilma-mcp: hittade inget lösenord i nyckelringen för '$WILMA_USERNAME'." >&2
+  echo "  security add-generic-password -s wilma-tldr -a '$WILMA_USERNAME' -w" >&2
+  exit 78
+fi
+
+export WILMA_BASE_URL WILMA_USERNAME WILMA_PASSWORD
+exec "$root/vendor/wilma-mcp/.venv/bin/python" -m wilma_mcp.server

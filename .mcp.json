@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "wilma": {
+      "command": "./bin/wilma-mcp",
+      "env": {
+        "WILMA_BASE_URL": "https://jakobstad.inschool.fi",
+        "WILMA_USERNAME": "storlundjonatan@gmail.com"
+      }
+    }
+  }
+}
