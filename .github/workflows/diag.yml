@@ -1,0 +1,31 @@
+name: Diagnostik
+
+on: workflow_dispatch
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Jämför hemligheten med den lokala utan att visa den
+        env:
+          WILMA_PASSWORD: ${{ secrets.WILMA_PASSWORD }}
+        run: |
+          # Saltad hash: går att jämföra, går inte att vända tillbaka utan saltet.
+          printf 'längd: %s tecken\n' "${#WILMA_PASSWORD}"
+          printf 'inleds/slutar med blanksteg: %s\n' \
+            "$(case "$WILMA_PASSWORD" in ' '*|*' ') echo JA;; *) echo nej;; esac)"
+          printf 'saltad hash: %s\n' \
+            "$(printf '%s' "skolveckan-diag-2026:$WILMA_PASSWORD" | sha256sum | cut -c1-12)"
+      - name: Vad svarar Wilma från den här maskinen?
+        env:
+          WILMA_PASSWORD: ${{ secrets.WILMA_PASSWORD }}
+        run: |
+          SID=$(curl -sS -c /tmp/jar https://jakobstad.inschool.fi/index_json | python3 -c 'import json,sys;print(json.load(sys.stdin)["SessionID"])')
+          echo "SessionID hämtad: ${#SID} tecken"
+          curl -sS -b /tmp/jar -c /tmp/jar -D - -o /dev/null \
+            --data-urlencode "Login=storlundjonatan@gmail.com" \
+            --data-urlencode "Password=$WILMA_PASSWORD" \
+            --data-urlencode "SESSIONID=$SID" \
+            https://jakobstad.inschool.fi/login \
+            | grep -iE '^HTTP|^location' | sed 's/\(Wilma2SID=\)[^;]*/\1<REDACTED>/'
