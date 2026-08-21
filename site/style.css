@@ -507,6 +507,7 @@
   .dayrel[data-state="today"],
   .dayrel[data-state="tomorrow"] {
     color: var(--urgent);
+    background: var(--urgent-wash);
     font-weight: 600;
   }
 
@@ -519,14 +520,21 @@
     border-top: 0;
   }
 
+  /* Ett litet chip i stället för grå text: "3 päivän päästä" är halva svaret på
+     frågan man kom för, och den försvann bredvid en fet rubrik. */
   .dayrel {
+    display: inline-block;
     font-family: var(--body);
     font-size: var(--fs-small);
     font-weight: 500;
     letter-spacing: 0;
     text-transform: none;
-    color: var(--ink-soft);
-    margin-left: 0.45rem;
+    color: var(--ink);
+    background: var(--surface-sunk);
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--r-sm);
+    margin-left: 0.5rem;
+    vertical-align: 0.05em;
   }
 
   /* En dag, ett datum. Dagsrubriken säger "mån 24.8", så posterna under den
