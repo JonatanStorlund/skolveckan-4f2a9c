@@ -65,13 +65,30 @@ const check = (name, fn) => {
 };
 
 // --- Fredag 21.8: veckoplaneringens läxor ligger nästa vecka men är nära ---
-check("fredag: nästa veckas läxor hamnar i närmaste veckan", () => {
+check("fredag: nästa veckas poster hamnar i närmaste veckan", () => {
   const w = open("2026-08-21");
+  // Rullande sju dagar, så tisdagen nästa vecka räknas som nära.
   const week = itemsIn(w, "week", "nellie");
   assert.ok(
-    week.some((i) => i.date === "2026-08-24"),
-    `måndagens läxa saknas i veckofacket: ${JSON.stringify(week)}`,
+    week.some((i) => i.date === "2026-08-25"),
+    `nästa veckas post saknas i veckofacket: ${JSON.stringify(week)}`,
   );
+});
+
+check("läxor ligger i egen låda, inte i veckan", () => {
+  const w = open("2026-08-21");
+  // Läxorna var merparten av volymen; de hör ett tryck bort, inte i veckan.
+  const week = itemsIn(w, "week", "nellie");
+  const panel = w.document.querySelector('section.kid[data-kid="nellie"]');
+  const drawer = panel.querySelector('details[data-group="laxor"]');
+  assert.ok(drawer, "ingen läxlåda renderades");
+  assert.equal(drawer.open, false, "läxlådan var öppen");
+  const inDrawer = [...drawer.querySelectorAll('li[data-kind="laxa"]')].filter((li) => !li.hidden);
+  assert.ok(inDrawer.length >= 2, `${inDrawer.length} läxor i lådan`);
+  for (const li of panel.querySelectorAll('.group[data-group="week"] li[data-kind]')) {
+    assert.notEqual(li.dataset.kind, "laxa", "en läxa ligger kvar i veckan");
+  }
+  assert.equal(Number(drawer.querySelector(".count").textContent), inDrawer.length);
 });
 
 check("fredag: inga poster i två fack samtidigt", () => {
@@ -87,12 +104,12 @@ check("fredag: inga poster i två fack samtidigt", () => {
 });
 
 // --- Måndag 24.8: facken ska ha flyttat sig utan ombyggnad ---
-check("måndag: måndagens post är kvar i veckan, inte i framåt", () => {
+check("måndag: tisdagens post är kvar i veckan, inte i framåt", () => {
   const w = open("2026-08-24");
   const week = itemsIn(w, "week", "nellie");
   const later = itemsIn(w, "later", "nellie");
-  assert.ok(week.some((i) => i.date === "2026-08-24"), "måndagen borde ligga i veckan");
-  assert.ok(!later.some((i) => i.date === "2026-08-24"), "måndagen dubblerades till framåt");
+  assert.ok(week.some((i) => i.date === "2026-08-25"), "tisdagen borde ligga i veckan");
+  assert.ok(!later.some((i) => i.date === "2026-08-25"), "tisdagen dubblerades till framåt");
 });
 
 check("måndag: förbrukat göms utan att en körning behövts", () => {
@@ -111,8 +128,8 @@ check("dagsrubriker byggs och är på rätt språk", () => {
   );
   assert.ok(heads.length > 0, "inga dagsrubriker byggdes");
   assert.ok(
-    heads.some((h) => /^mån 24\.8/.test(h)),
-    `förväntade "mån 24.8" bland ${JSON.stringify(heads)}`,
+    heads.some((h) => /^tis 25\.8/.test(h)),
+    `förväntade "tis 25.8" bland ${JSON.stringify(heads)}`,
   );
 
   const fi = open("2026-08-21", { lang: "fi-FI" });
@@ -120,8 +137,8 @@ check("dagsrubriker byggs och är på rätt språk", () => {
     (li) => li.textContent,
   );
   assert.ok(
-    fiHeads.some((h) => /^ma 24\.8/.test(h)),
-    `förväntade "ma 24.8" bland ${JSON.stringify(fiHeads)}`,
+    fiHeads.some((h) => /^ti 25\.8/.test(h)),
+    `förväntade "ti 25.8" bland ${JSON.stringify(fiHeads)}`,
   );
 });
 
