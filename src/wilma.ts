@@ -282,7 +282,12 @@ export class Wilma {
     const blocks = scope.split(/(?=<h2[^>]*>\s*\d{1,2}\.\d{1,2}\.)/);
     for (const block of blocks) {
       const head = /<h2[^>]*>\s*(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*<\/h2>/.exec(block);
-      if (!head) continue;
+      if (!head) {
+        // Hellre tappa blocket än ärva föregående datum — men säg det.
+        const titles = [...block.matchAll(/<h3>\s*([\s\S]*?)\s*<\/h3>/g)].length;
+        if (titles) console.warn(`Anslagsblock utan läsbar datumrubrik — ${titles} anslag hoppas över.`);
+        continue;
+      }
       const date = isoFrom(Number(head[1]), Number(head[2]), head[3] ? Number(head[3]) : null);
 
       for (const m of block.matchAll(

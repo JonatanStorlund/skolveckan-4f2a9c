@@ -103,6 +103,27 @@ interface Violation {
   problem: string;
 }
 
+/**
+ * Lagar det som går att laga i kod. Skilt från violations() med flit: en
+ * funktion som heter "violations" ska rapportera, inte redigera i smyg.
+ *
+ * En not eller datumetikett på bara ett språk blankas på båda sidor — renderaren
+ * räknar ändå fram etiketten ur datumet, och en riktig läxa är för värdefull att
+ * kasta för ett kosmetiskt fält.
+ */
+function repair(result: Tldr): void {
+  for (const item of result.items) {
+    if (Boolean(item.note.trim()) !== Boolean(item.note_fi.trim())) {
+      item.note = "";
+      item.note_fi = "";
+    }
+    if (Boolean(item.date_label.trim()) !== Boolean(item.date_label_fi.trim())) {
+      item.date_label = "";
+      item.date_label_fi = "";
+    }
+  }
+}
+
 function violations(result: Tldr, source: string): Violation[] {
   const problems: Violation[] = [];
   const haystack = normalise(source);
@@ -113,19 +134,6 @@ function violations(result: Tldr, source: string): Violation[] {
 
     if (!item.text.trim() || !item.text_fi.trim()) {
       add("saknar text på båda språken");
-    }
-    // Noter och datumetiketter måste finnas på båda språken eller inget av dem,
-    // annars ser en finsk läsare en rad som en svensk saknar. Men de lagas i kod
-    // i stället för att fälla posten: renderaren räknar ändå fram en etikett ur
-    // datumet, och en riktig läxa är för värdefull att kasta för ett kosmetiskt
-    // fält. Bara text/text_fi är oräddningsbart.
-    if (Boolean(item.note.trim()) !== Boolean(item.note_fi.trim())) {
-      item.note = "";
-      item.note_fi = "";
-    }
-    if (Boolean(item.date_label.trim()) !== Boolean(item.date_label_fi.trim())) {
-      item.date_label = "";
-      item.date_label_fi = "";
     }
     if (item.date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date) || Number.isNaN(Date.parse(item.date))) {
@@ -244,6 +252,7 @@ export async function extract(message: string, options: ExtractOptions): Promise
   let { result, usage: first } = await callModel(WORK_MODEL, message, options);
   usage.push(first);
 
+  repair(result);
   let problems = violations(result, message);
   if (problems.length) {
     console.warn(
@@ -253,6 +262,7 @@ export async function extract(message: string, options: ExtractOptions): Promise
     const rescue = await callModel(RESCUE_MODEL, message, options);
     usage.push(rescue.usage);
     result = rescue.result;
+    repair(result);
     problems = violations(result, message);
   }
 

@@ -127,9 +127,9 @@ async function loadHousehold(): Promise<Record<string, string[]>> {
   }
 }
 
-async function loadState(today: string): Promise<State | null> {
+async function loadState(today: string, file: string): Promise<State | null> {
   try {
-    const state = JSON.parse(await readFile(statePath, "utf8")) as State;
+    const state = JSON.parse(await readFile(file, "utf8")) as State;
     // Ett semantiskt trasigt addedOn hade fått merge() att kasta utanför all
     // felhantering, varje dygn, utan väg tillbaka annat än att rensa cachen.
     const repair = (rows: { addedOn?: string }[]) => {
@@ -188,22 +188,36 @@ function dayOf(timestamp: string): string {
   return day;
 }
 
-async function main(): Promise<void> {
-  const baseUrl = process.env.WILMA_BASE_URL;
-  const username = process.env.WILMA_USERNAME;
-  const password = process.env.WILMA_PASSWORD;
-  if (!baseUrl || !username || !password) {
-    throw new Error("WILMA_BASE_URL, WILMA_USERNAME och WILMA_PASSWORD måste vara satta.");
-  }
-  // Kontrolleras här, inte vid första extraheringen: annars loggar vi in, hämtar
-  // två inkorgar, provkalendrar och foton och faller först då.
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY måste vara satt.");
-  }
+/** Det körningen behöver utifrån. Injicerbart så att main() går att provköra. */
+export interface Deps {
+  wilma: Pick<Wilma, "children" | "messages" | "exams" | "photo" | "read" | "notices" | "readNotice">;
+  extract: typeof extract;
+  now?: Date;
+  statePath?: string;
+  photoDir?: string;
+}
 
-  const now = new Date();
+export async function run(deps: Deps): Promise<State> {
+  const wilma = deps.wilma;
+  const extractOne = deps.extract;
+  const stateFile = deps.statePath ?? statePath;
+  const photos = deps.photoDir ?? photoDir;
+
+  const now = deps.now ?? new Date();
   const today = isoToday(now);
-  const previous = await loadState(today);
+  const previous = await loadState(today, stateFile);
+  // Ett meddelande som aldrig kan lyckas — för långt för max_tokens, säg — låg
+  // tidigare och köptes om varje dygn i all evighet.
+  const attempts: Record<string, number> = { ...(previous?.attempts ?? {}) };
+  const MAX_ATTEMPTS = 3;
+  const bumpAttempt = (key: string) => {
+    attempts[key] = (attempts[key] ?? 0) + 1;
+    if (attempts[key] >= MAX_ATTEMPTS) {
+      console.warn(`  ${key} har fallit ${attempts[key]} gånger — ger upp om den.`);
+    }
+  };
+  const exhausted = (key: string) => (attempts[key] ?? 0) >= MAX_ATTEMPTS;
+
   const household = await loadHousehold();
   const seen = new Set(previous?.seen ?? []);
   // Ett meddelande som gett en post är läst, även om seen-listan tappat det.
@@ -215,21 +229,20 @@ async function main(): Promise<void> {
     if (typeof item.messageId === "number" && item.messageId > 0) seen.add(item.messageId);
   }
 
-  const wilma = new Wilma(baseUrl, username, password);
   const children = await wilma.children();
   if (children.length === 0) throw new Error("Wilma gav inga barn.");
 
   // Steg 1: inkorg, prov och foto per barn. Inga modellanrop här.
   const inboxes = new Map<string, Awaited<ReturnType<Wilma["messages"]>>>();
   const exams = new Map<string, Exam[]>();
-  await mkdir(photoDir, { recursive: true });
+  await mkdir(photos, { recursive: true });
 
   for (const child of children) {
     inboxes.set(child.prefix, await wilma.messages(child.prefix, INBOX_LIMIT));
     exams.set(child.prefix, await wilma.exams(child.prefix));
 
     const photo = await wilma.photo(child.prefix);
-    if (photo) await writeFile(path.join(photoDir, `${slugOf(child)}.jpg`), photo);
+    if (photo) await writeFile(path.join(photos, `${slugOf(child)}.jpg`), photo);
     else console.warn(`Inget foto för ${child.name} — behåller eventuellt tidigare.`);
   }
 
@@ -269,22 +282,11 @@ async function main(): Promise<void> {
   console.log(`${toExtract.length} meddelanden att extrahera, ${seen.size} redan sedda.`);
 
   // Steg 4: extrahera. Enda steget som kostar något.
-  // Ett meddelande som aldrig kan lyckas — för långt för max_tokens, säg — låg
-  // tidigare och köptes om varje dygn i all evighet.
-  const attempts: Record<string, number> = { ...(previous?.attempts ?? {}) };
-  const MAX_ATTEMPTS = 3;
-  const bumpAttempt = (key: string) => {
-    attempts[key] = (attempts[key] ?? 0) + 1;
-    if (attempts[key] >= MAX_ATTEMPTS) {
-      console.warn(`  ${key} har fallit ${attempts[key]} gånger — ger upp om den.`);
-    }
-  };
-  const exhausted = (key: string) => (attempts[key] ?? 0) >= MAX_ATTEMPTS;
-
   const usage: Usage[] = [];
   // Skilda listor med flit: publiceringsbeslutet hör till meddelandena. Delade
   // räknare gjorde att sex anslagsfel kunde stoppa sex lyckade meddelanden.
   const msgFailures: string[] = [];
+  const failedIds: string[] = [];
   const noticeFailures: string[] = [];
   const freshItems = new Map<string, Item[]>();  // nyckel: prefix eller "shared"
   const freshUnclear = new Map<string, Unclear[]>();
@@ -315,7 +317,7 @@ async function main(): Promise<void> {
         });
 
       const sentAt = new Date(`${dayOf(message.timestamp)}T12:00:00+03:00`);
-      const result = await extract(body.text + attached, { sentAt, now, household: facts });
+      const result = await extractOne(body.text + attached, { sentAt, now, household: facts });
       usage.push(...result.usage);
       if (result.dropped.length) {
         console.warn(`  [${id}] släppte ${result.dropped.length} post(er): ${result.dropped.join("; ")}`);
@@ -347,7 +349,9 @@ async function main(): Promise<void> {
       // Meddelandet läggs medvetet INTE i seen: nästa körning får försöka igen.
       // Men de som redan lyckats ska inte kastas bort med det.
       msgFailures.push(`[${id}] ${message.subject}: ${error instanceof Error ? error.message : error}`);
-      bumpAttempt(`m${id}`);
+      // Budgeten räknas upp först när vi vet att felet var källspecifikt — se
+      // nedan. Ett API-avbrott ska inte överge tre meddelanden för alltid.
+      failedIds.push(`m${id}`);
       console.error(`  [${id}] FEL, hoppar över: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -356,7 +360,7 @@ async function main(): Promise<void> {
   // dagsaktuella anslag läses — resten skulle kosta tokens utan att säga något.
   const seenNotices = new Set(previous?.seenNotices ?? []);
   // Härled på samma sätt som seen, så listan inte kan glida ifrån innehållet.
-  for (const item of [...(previous?.children ?? []).flatMap((c) => c.items)]) {
+  for (const item of (previous?.children ?? []).flatMap((c) => [...c.items, ...c.uncertain])) {
     if (typeof item.messageId === "number" && item.messageId < 0) seenNotices.add(-item.messageId);
   }
   let noticeBudget = MAX_NOTICES_PER_RUN;
@@ -393,7 +397,7 @@ async function main(): Promise<void> {
         const facts = (household[slugOf(child)] ?? []).map(
           (fact) => `${child.name.split(/\s+/)[0]}: ${fact}`,
         );
-        const result = await extract(
+        const result = await extractOne(
           `Anslag på skolans anslagstavla: ${notice.title}\n\n${body.text}${attached}`,
           { sentAt, now, household: facts },
         );
@@ -429,9 +433,32 @@ async function main(): Promise<void> {
         );
       } catch (error) {
         noticeFailures.push(`anslag [${notice.id}]: ${error instanceof Error ? error.message : error}`);
-        bumpAttempt(`n${notice.id}`);
+        failedIds.push(`n${notice.id}`);
       }
     }
+  }
+
+  for (const [label, list] of [
+    ["meddelande", msgFailures],
+    ["anslag", noticeFailures],
+  ] as const) {
+    if (list.length) console.error(`\n${list.length} ${label} kunde inte läsas:\n  ${list.join("\n  ")}`);
+  }
+  // Föll varje enskilt meddelande är felet systematiskt, inte källspecifikt: då
+  // ska ingen budget räknas upp, gårdagens sida stå kvar och mejlet komma.
+  const systemic = toExtract.length > 0 && msgFailures.length === toExtract.length;
+  if (!systemic) for (const key of failedIds) bumpAttempt(key);
+  if (systemic) {
+    throw new Error("Samtliga meddelanden föll — publicerar inget.");
+  }
+
+  // Uppgivna källor ska synas i varje körning, inte bara den gång de gavs upp.
+  const abandoned = Object.entries(attempts).filter(([, n]) => n >= MAX_ATTEMPTS);
+  if (abandoned.length) {
+    console.warn(
+      `\n${abandoned.length} källa/källor har getts upp efter ${MAX_ATTEMPTS} försök: ` +
+        abandoned.map(([key]) => key).join(", "),
+    );
   }
 
   // Helgvakt: skolan har inte lektioner på lördag eller söndag, så ett datum
@@ -494,8 +521,8 @@ async function main(): Promise<void> {
     }),
   };
 
-  await mkdir(path.dirname(statePath), { recursive: true });
-  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  await mkdir(path.dirname(stateFile), { recursive: true });
+  await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);
 
   const total = state.children.reduce((sum, c) => sum + c.items.length, 0) + state.shared.length;
   console.log(
@@ -503,17 +530,27 @@ async function main(): Promise<void> {
       `${state.children.reduce((s, c) => s + c.exams.length, 0)} prov, stamp ${state.stamp}`,
   );
   console.log(summariseUsage(usage));
-  for (const [label, list] of [
-    ["meddelande", msgFailures],
-    ["anslag", noticeFailures],
-  ] as const) {
-    if (list.length) console.error(`\n${list.length} ${label} kunde inte läsas:\n  ${list.join("\n  ")}`);
-  }
-  // Bara meddelandena avgör om sidan får publiceras. Föll varje enskilt är felet
-  // systematiskt, och då ska gårdagens sida stå kvar och mejlet komma.
-  if (toExtract.length > 0 && msgFailures.length === toExtract.length) {
-    throw new Error("Samtliga meddelanden föll — publicerar inget.");
-  }
+
+  return state;
 }
 
-await main();
+async function main(): Promise<void> {
+  const baseUrl = process.env.WILMA_BASE_URL;
+  const username = process.env.WILMA_USERNAME;
+  const password = process.env.WILMA_PASSWORD;
+  if (!baseUrl || !username || !password) {
+    throw new Error("WILMA_BASE_URL, WILMA_USERNAME och WILMA_PASSWORD måste vara satta.");
+  }
+  // Kontrolleras här, inte vid första extraheringen: annars loggar vi in, hämtar
+  // två inkorgar, provkalendrar och foton och faller först då.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY måste vara satt.");
+  }
+
+  await run({ wilma: new Wilma(baseUrl, username, password), extract });
+}
+
+// Bara när filen körs direkt — testerna importerar run() utan att starta något.
+if (process.argv[1] && /daily\.[tj]s$/.test(process.argv[1])) {
+  await main();
+}

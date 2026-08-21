@@ -9,7 +9,7 @@
     "dev": "tsx watch src/server.ts",
     "typecheck": "tsc --noEmit",
     "try": "tsx src/try.ts",
-    "test": "node tests/page.test.mjs",
+    "test": "node tests/page.test.mjs && tsx tests/daily.test.mts",
     "preview": "node site/render.mjs && node site/build.mjs && python3 -m http.server 4174 --directory dist"
   },
   "dependencies": {
