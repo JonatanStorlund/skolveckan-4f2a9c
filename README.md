@@ -141,6 +141,12 @@ läst.
 gemensamt band för det som gick till hela kommunen, en spalt per barn, kryssrutor
 för det som går att göra klart.
 
+Sidan finns på **svenska och finska** med en väljare uppe till höger. Båda språken
+bor i samma `STRINGS`-tabell i sidan, så en ändring på ett språk kan inte glömmas
+bort på det andra — ett bygge kontrollerar att nyckelmängderna är identiska.
+Förstagångsbesökaren får språk efter webbläsaren; valet därefter sparas lokalt.
+Relativa dagar följer med ("om 4 dagar" / "4 päivän päästä").
+
 Två utgåvor av samma fil:
 
 | Var | Adress | Åtkomst |
