@@ -114,4 +114,44 @@ server.registerTool(
     }),
 );
 
+server.registerTool(
+  "wilma_exams",
+  {
+    title: "Lista prov",
+    description:
+      "Kommande prov ur Wilmas provkalender, per barn. Utan 'child' listas alla barn. Sätt 'past' för redan hållna prov. Prov ligger inte i meddelandena — de kommer härifrån.",
+    inputSchema: {
+      child: z
+        .string()
+        .optional()
+        .describe("Förnamn, helt namn eller rollprefix. Utlämnat: alla barn."),
+      past: z.boolean().optional().describe("Hämta hållna prov i stället för kommande."),
+    },
+  },
+  async ({ child, past }) =>
+    guard(async () => {
+      const kids = child ? [await wilma.resolveChild(child)] : await wilma.children();
+      const blocks: string[] = [];
+
+      for (const kid of kids) {
+        const exams = await wilma.exams(kid.prefix, past ?? false);
+        const header = `## ${kid.name} — ${kid.school}, ${kid.className}`;
+        if (exams.length === 0) {
+          blocks.push(`${header}\n(inga ${past ? "hållna" : "inbokade"} prov)`);
+          continue;
+        }
+        blocks.push(
+          `${header}\n` +
+            exams
+              .map((e) => {
+                const who = e.teachers.length ? ` | ${e.teachers.join(", ")}` : "";
+                return `${e.date}  ${e.subject}  (${e.group})${who}`;
+              })
+              .join("\n"),
+        );
+      }
+      return blocks.join("\n\n");
+    }),
+);
+
 await server.connect(new StdioServerTransport());

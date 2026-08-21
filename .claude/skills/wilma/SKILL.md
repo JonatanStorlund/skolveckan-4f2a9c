@@ -37,7 +37,11 @@ gånger.
 5. **`wilma_read`** med `child` och `id` för varje valt meddelande. Läs hela — det
    praktiska ligger nästan alltid inbakat mitt i prosan, inte i slutet.
 
-6. **Extrahera enligt `rules/extraction.md`.** Kort sagt: bara det som står i
+6. **`wilma_exams`** när frågan rör prov, förhör, veckan som kommer, eller en
+   allmän översikt. Prov står inte i meddelandena — de finns bara i
+   provkalendern, så en översikt utan `wilma_exams` missar dem.
+
+7. **Extrahera enligt `rules/extraction.md`.** Kort sagt: bara det som står i
    meddelandet, dagens datum som referens för "på tisdag", obligatoriskt citat per
    rad, oklarheter separerade i stället för gissade.
 
@@ -61,7 +65,10 @@ Nellie · Bonäs skola, 2b
 ```
 
 Ikoner: 🎒 ta med · ✍️ deadline · 🚫 ingen skola · 🕒 ändrad tid · 📍 evenemang ·
-💳 betalning · ℹ️ info.
+💳 betalning · 📝 prov · ℹ️ info.
+
+Prov redovisas med ämne och datum, och läggs sist i barnets avsnitt — de kräver
+inget nu, men de ska gå att se. Har ett barn inga prov, skriv det på en rad.
 
 Regler för utdata:
 

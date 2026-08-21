@@ -31,6 +31,16 @@ export interface MessageBody extends MessageSummary {
   text: string;
 }
 
+export interface Exam {
+  /** ISO-datum, "2026-10-07". */
+  date: string;
+  /** Ämnesnamn som Wilma skriver det, t.ex. "Matematik". */
+  subject: string;
+  /** Gruppkod, t.ex. "MA MA71". */
+  group: string;
+  teachers: string[];
+}
+
 export class WilmaError extends Error {}
 export class WilmaAuthError extends WilmaError {}
 export class WilmaMfaError extends WilmaAuthError {}
@@ -231,6 +241,46 @@ export class Wilma {
       timestamp: m.TimeStamp,
       unread: m.Status === 1,
     }));
+  }
+
+  /**
+   * Prov ur Wilmas provkalender ("Kokeet").
+   *
+   * `/exams/calendar/index_json` svarar HTML med content-type application/json,
+   * så vi läser HTML:en direkt: en tabell per prov, datumet i <strong>.
+   */
+  async exams(prefix: string, past = false): Promise<Exam[]> {
+    const response = await this.authed(`${prefix}/exams/calendar${past ? "/past" : ""}`);
+    if (!response.ok) throw new WilmaError(`Provkalendern gav ${response.status}.`);
+    const html = await response.text();
+
+    const exams: Exam[] = [];
+    for (const table of html.split(/<table[^>]*class="[^"]*table-grey[^"]*"[^>]*>/i).slice(1)) {
+      const rawDate = /<strong>\s*([^<]+?)\s*<\/strong>/i.exec(table)?.[1];
+      if (!rawDate) continue;
+
+      // "Ke 7.10.2026" -> 2026-10-07. Veckodagen räknas ur datumet vid
+      // presentation, så vi slipper översätta finska förkortningar.
+      const dmy = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(rawDate);
+      if (!dmy) continue;
+      const [, d, m, y] = dmy;
+      const date = `${y}-${m!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
+
+      // Cellen efter datumet: "MA MA71 : Matematik".
+      const afterDate = table.slice(table.indexOf("</strong>"));
+      const cell = /<td[^>]*>([\s\S]*?)<\/td>/i.exec(afterDate.slice(afterDate.indexOf("</td>")))?.[1] ?? "";
+      const plain = stripTags(cell).replace(/\s+/g, " ").trim();
+      const split = plain.indexOf(":");
+      const group = split === -1 ? "" : plain.slice(0, split).trim();
+      const subject = (split === -1 ? plain : plain.slice(split + 1)).trim();
+
+      const teachers = [...table.matchAll(/class="[^"]*profile-link[^"]*"[^>]*>([^<]+)<\/a>/gi)].map(
+        (t) => decodeEntities(t[1]!.trim()),
+      );
+
+      exams.push({ date, subject: decodeEntities(subject), group: decodeEntities(group), teachers });
+    }
+    return exams.sort((a, b) => a.date.localeCompare(b.date));
   }
 
   /**

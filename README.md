@@ -116,6 +116,7 @@ som webbappen, med ett avsnitt per barn.
 | `wilma_children` | Barnen med skola, klass och rollprefix |
 | `wilma_messages` | Inkorgen per barn (alla barn om inget anges) |
 | `wilma_read` | Hela texten i ett meddelande, för ett angivet barn |
+| `wilma_exams` | Kommande (eller hållna) prov ur provkalendern, per barn |
 
 Läs-bara med flit: servern kan inte skicka meddelanden, svara eller markera som
 läst.
@@ -125,6 +126,11 @@ läst.
 - **MFA stöds inte.** Kräver kontot engångskod misslyckas inloggningen med ett
   tydligt fel. Flödet är dokumenterat (`LoginResult: "mfa-required"` →
   `POST /api/v1/accounts/me/mfa/otp/check` → `Wilma2MFASID`, giltig 30 dagar).
+- **Prov ligger inte i meddelandena.** De kommer ur Wilmas egen provkalender,
+  `/!<prefix>/exams/calendar` — en tabell per prov med datumet i `<strong>`.
+  Lägg till `/past` för hållna prov. Att bara läsa meddelanden missar dem helt.
+- **`/exams/calendar/index_json` ljuger.** Den svarar HTML med content-type
+  `application/json`, så en JSON-parser kraschar på första tecknet.
 - **Meddelandetexten hämtas som HTML.** Den dokumenterade JSON-varianten
   (`/messages/index_json/<id>`) svarar 403 på den här installationen; brödtexten
   ligger i `div.ckeditor`.

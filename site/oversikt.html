@@ -379,6 +379,14 @@
     text-decoration: line-through;
   }
 
+  li.exam .what {
+    font-weight: 600;
+  }
+
+  li.exam {
+    border-top-color: var(--line-firm);
+  }
+
   /* --- Oklart --- */
 
   .unclear {
@@ -497,6 +505,22 @@
           <span class="icon">ℹ️</span>
           <span class="what" data-t="cBook">Livsåskådning åk 7 har ingen lärobok</span>
         </li>
+        <li class="exam">
+          <span class="icon">📝</span>
+          <span class="what" data-t="cProvMa">Prov: Matematik</span>
+          <div class="meta">
+            <span class="when" data-t="cProvMaWhen">ons 7.10</span>
+            <span class="rel" data-date="2026-10-07"></span>
+          </div>
+        </li>
+        <li class="exam">
+          <span class="icon">📝</span>
+          <span class="what" data-t="cProvFy">Prov: Fysik</span>
+          <div class="meta">
+            <span class="when" data-t="cProvFyWhen">mån 2.11</span>
+            <span class="rel" data-date="2026-11-02"></span>
+          </div>
+        </li>
       </ul>
     </section>
 
@@ -559,6 +583,10 @@
             Hör av dig via Wilma om något vaccin saknas.
           </p>
         </li>
+        <li class="exam">
+          <span class="icon">📝</span>
+          <span class="what" data-t="nProv">Inga inbokade prov</span>
+        </li>
       </ul>
       <div class="unclear">
         <strong data-t="unclearLabel">Oklart</strong>
@@ -620,6 +648,11 @@
         nHjalm: "Kolla att cykelhjälmen sitter rätt",
         nHalsa: "Hälsoundersökning åk 2 inom en månad",
         nHalsaNote: "Hör av dig via Wilma om något vaccin saknas.",
+        cProvMa: "Prov: Matematik",
+        cProvMaWhen: "ons 7.10",
+        cProvFy: "Prov: Fysik",
+        cProvFyWhen: "mån 2.11",
+        nProv: "Inga inbokade prov",
         unclearLabel: "Oklart",
         unclearText:
           "Föräldramöte hålls i höst, men datum är inte bestämt — skolan väntar på besked om invigning och öppet hus.",
@@ -665,6 +698,11 @@
         nHjalm: "Tarkista että pyöräilykypärä istuu oikein",
         nHalsa: "2. luokan terveystarkastus kuukauden sisällä",
         nHalsaNote: "Ota yhteyttä Wilmassa, jos jokin rokote puuttuu.",
+        cProvMa: "Koe: Matematiikka",
+        cProvMaWhen: "ke 7.10.",
+        cProvFy: "Koe: Fysiikka",
+        cProvFyWhen: "ma 2.11.",
+        nProv: "Ei sovittuja kokeita",
         unclearLabel: "Epäselvää",
         unclearText:
           "Vanhempainilta pidetään syksyllä, mutta päivää ei ole päätetty — koulu odottaa tietoa vihkiäisistä ja avoimien ovien päivästä.",
