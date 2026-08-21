@@ -17,6 +17,12 @@
     --accent: #16211f;
 
     /* Etikettfärger: sex par, inte tio — annars blir listan en fruktsallad. */
+    /* Närhetsskala: färgen ÄR svaret. Rött i dag, gult om ett par dagar, blått
+       längre bort — så räcker det att se chipet, inte läsa det. */
+    --near-fg: #8a5a12;
+    --near-bg: #f9efd9;
+    --calm-fg: #2d4a86;
+    --calm-bg: #e6ecf8;
     --tag-bring-fg: #8a4b12;
     --tag-bring-bg: #f7ecdc;
     --tag-home-fg: #2d4a86;
@@ -58,7 +64,11 @@
       --nellie: #dda0bd;
       --urgent: #f0a878;
       --urgent-wash: #33231a;
-      --tag-bring-fg: #f0c391;
+      --near-fg: #f0c391;
+      --near-bg: #34281c;
+      --calm-fg: #a8c2ee;
+      --calm-bg: #1d2635;
+    --tag-bring-fg: #f0c391;
       --tag-bring-bg: #34281c;
       --tag-home-fg: #a8c2ee;
       --tag-home-bg: #1d2635;
@@ -86,6 +96,10 @@
     --nellie: #dda0bd;
     --urgent: #f0a878;
     --urgent-wash: #33231a;
+    --near-fg: #f0c391;
+    --near-bg: #34281c;
+    --calm-fg: #a8c2ee;
+    --calm-bg: #1d2635;
     --tag-bring-fg: #f0c391;
     --tag-bring-bg: #34281c;
     --tag-home-fg: #a8c2ee;
@@ -450,8 +464,12 @@
   }
 
   .rel {
+    display: inline-block;
     font-size: var(--fs-small);
-    color: var(--ink-soft);
+    color: var(--ink);
+    background: var(--surface-sunk);
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--r-sm);
   }
 
   /* Ett datum är en odelbar enhet — "tor–fre 10–" / "11.9" är inte ett datum. */
@@ -461,12 +479,9 @@
     white-space: nowrap;
   }
 
-  .rel[data-state="soon"] {
-    color: var(--urgent);
-    font-weight: 600;
-  }
-
   .rel[data-state="past"] {
+    color: var(--ink-mute);
+    background: transparent;
     text-decoration: line-through;
   }
 
@@ -497,18 +512,58 @@
     border-top: 1px solid var(--line-firm);
   }
 
-  /* I dag och imorgon är hela poängen med sidan — de ska vara det enda som
-     skriker. Tidigare var "idag" typografiskt identiskt med "om 20 dagar". */
-  li.dayhead:has(.dayrel[data-state="today"]),
-  li.dayhead:has(.dayrel[data-state="tomorrow"]) {
+  /* Veckodagen bär samma färg som chipet: "tis 25.8" ska säga hur nära det är
+     utan att man läser "om 4 dagar". */
+  li.dayhead[data-prox="today"],
+  li.dayhead[data-prox="tomorrow"] {
     color: var(--urgent);
   }
 
+  li.dayhead[data-prox="near"] {
+    color: var(--near-fg);
+  }
+
+  li.dayhead[data-prox="week"] {
+    color: var(--calm-fg);
+  }
+
+  /* Samma språk på datumchipen i Viktiga datum och Prov. */
+  li[data-prox="today"] .when,
+  li[data-prox="tomorrow"] .when {
+    color: var(--urgent);
+    background: var(--urgent-wash);
+  }
+
+  li[data-prox="near"] .when {
+    color: var(--near-fg);
+    background: var(--near-bg);
+  }
+
+  li[data-prox="week"] .when {
+    color: var(--calm-fg);
+    background: var(--calm-bg);
+  }
+
   .dayrel[data-state="today"],
-  .dayrel[data-state="tomorrow"] {
+  .dayrel[data-state="tomorrow"],
+  .rel[data-state="today"],
+  .rel[data-state="tomorrow"] {
     color: var(--urgent);
     background: var(--urgent-wash);
     font-weight: 600;
+  }
+
+  .dayrel[data-state="near"],
+  .rel[data-state="near"] {
+    color: var(--near-fg);
+    background: var(--near-bg);
+    font-weight: 600;
+  }
+
+  .dayrel[data-state="week"],
+  .rel[data-state="week"] {
+    color: var(--calm-fg);
+    background: var(--calm-bg);
   }
 
   li.dayhead:first-child {

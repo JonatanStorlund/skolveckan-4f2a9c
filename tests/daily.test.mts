@@ -32,6 +32,7 @@ interface StubOptions {
   notices?: { id: number; title: string; date: string }[];
   readThrows?: boolean;
   homework?: { course: string; date: string; text: string }[];
+  sameText?: boolean;
   extractThrows?: boolean;
   transportThrows?: boolean;
   items?: number;
@@ -81,12 +82,12 @@ function stub(options: StubOptions = {}) {
         language_in: "sv",
         subject: "",
         items: Array.from({ length: options.items ?? 1 }, (_, i) => ({
-          text: `Post ${i}`,
-          text_fi: `Kohta ${i}`,
+          text: options.sameText ? "Läs kapitel 3" : `Post ${i}`,
+          text_fi: options.sameText ? "Lue luku 3" : `Kohta ${i}`,
           kind: "ta_med" as const,
-          date: "2026-08-25",
-          date_label: "tis 25.8",
-          date_label_fi: "ti 25.8.",
+          date: options.sameText ? "" : "2026-08-25",
+          date_label: options.sameText ? "" : "tis 25.8",
+          date_label_fi: options.sameText ? "" : "ti 25.8.",
           time: "",
           note: "",
           note_fi: "",
@@ -291,6 +292,81 @@ await check("ett nytt svar i en tråd gör den läsvärd igen", async () => {
   } as unknown as Deps;
   await run({ ...deps, ...paths });
   assert.equal(answered.calls.extract, 1, "svaret i tråden lästes inte");
+});
+
+await check("läxfel räknas och loggas som andra fel", async () => {
+  const paths = await tempPaths();
+  // Rapporten låg före de loopar som fyllde den, så läx- och anslagsfel
+  // räknades aldrig — åtta trasiga poster kostade åtta anrop varje dygn.
+  const homework = [{ course: "MA MA71", date: "2026-08-20", text: "s.12 Kortläxa" }];
+  for (let day = 1; day <= 3; day += 1) {
+    const { deps } = stub({ messages: [], homework, extractThrows: true });
+    const state = await run({ ...deps, ...paths });
+    const key = Object.keys(state.attempts ?? {}).find((k) => k.startsWith("h"));
+    assert.equal(state.attempts?.[key!], day, `dag ${day}: budgeten står på ${state.attempts?.[key!]}`);
+  }
+  const fourth = stub({ messages: [], homework, extractThrows: true });
+  const state = await run({ ...fourth.deps, ...paths });
+  assert.equal(fourth.calls.extract, 0, "en uppgiven läxpost köptes igen");
+  assert.equal(state.abandoned?.length, 1, "uppgiven läxpost syns inte i tillståndet");
+});
+
+await check("två läxor med samma lydelse på olika dagar blir två", async () => {
+  const { deps } = stub({
+    messages: [],
+    homework: [
+      { course: "MA MA71", date: "2026-08-24", text: "Läs kapitel 3" },
+      { course: "FY FY71", date: "2026-08-26", text: "Läs kapitel 3" },
+    ],
+    sameText: true,
+  });
+  const state = await run({ ...deps, ...(await tempPaths()) });
+  // merge() nycklade utan datum, så den ena försvann — och båda märktes lästa.
+  assert.equal(state.children[0]!.items.length, 2, "en av två identiskt formulerade läxor tappades");
+});
+
+await check("finskt \"Ei läksyä\" sållas utan modellanrop", async () => {
+  const { deps, calls } = stub({
+    messages: [],
+    homework: [
+      { course: "MOFIA1.1", date: "2026-08-20", text: "Ei läksyä!" },
+      { course: "HI HI71", date: "2026-08-20", text: "Tema: Inledning. Läxa: Ingen läxa." },
+    ],
+  });
+  const state = await run({ ...deps, ...(await tempPaths()) });
+  assert.equal(calls.extract, 0, `${calls.extract} modellanrop för poster utan läxa`);
+  assert.equal(state.children[0]!.items.length, 0);
+});
+
+await check("ett misslyckat trådsvar tappas inte", async () => {
+  const paths = await tempPaths();
+  const msg = { id: 101, subject: "Ansökan", timestamp: "2026-08-20 14:00" };
+  await run({ ...stub({ messages: [msg] }).deps, ...paths });
+
+  // Svaret kommer, omläsningen faller: antalet får INTE skrivas om.
+  const failing = stub({ messages: [msg], extractThrows: true });
+  const withReply = (calls: { extract: number }) =>
+    ({
+      ...failing.deps,
+      wilma: {
+        ...(failing.deps as { wilma: Record<string, unknown> }).wilma,
+        messages: async () => [{ ...msg, sender: "Läraren", unread: false, replies: 1 }],
+      },
+    }) as unknown as Deps;
+  const afterFailure = await run({ ...withReply(failing.calls), ...paths });
+  assert.equal(afterFailure.replies?.["101"], 0, "antalet skrevs om trots misslyckad omläsning");
+
+  // Nästa dygn ska svaret försökas igen.
+  const retry = stub({ messages: [msg] });
+  const deps = {
+    ...retry.deps,
+    wilma: {
+      ...(retry.deps as { wilma: Record<string, unknown> }).wilma,
+      messages: async () => [{ ...msg, sender: "Läraren", unread: false, replies: 1 }],
+    },
+  } as unknown as Deps;
+  await run({ ...deps, ...paths });
+  assert.equal(retry.calls.extract, 1, "svaret försöktes inte igen");
 });
 
 console.log(results.join("\n"));

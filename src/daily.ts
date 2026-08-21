@@ -9,7 +9,7 @@
  * sidan ser förändrad ut utan att något hänt.
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { Wilma, WilmaError, type Child, type Exam, type HomeworkEntry } from "./wilma.js";
 import {
@@ -130,9 +130,9 @@ const unclearStillRelevant = (u: Unclear, today: string): boolean =>
  * Fakta om hemmet som meddelandena inte känner till — t.ex. att ett barn inte
  * går på eftis, så att eftis-info aldrig hamnar på det barnets lista.
  */
-async function loadHousehold(): Promise<Record<string, string[]>> {
+async function loadHousehold(file: string): Promise<Record<string, string[]>> {
   try {
-    const raw = JSON.parse(await readFile(householdPath, "utf8")) as {
+    const raw = JSON.parse(await readFile(file, "utf8")) as {
       children?: Record<string, string[]>;
     };
     return raw.children ?? {};
@@ -212,6 +212,8 @@ export interface Deps {
   now?: Date;
   statePath?: string;
   photoDir?: string;
+  /** Sökväg till hushållsfakta. Injicerbar så testerna inte läser den riktiga. */
+  householdPath?: string;
 }
 
 export async function run(deps: Deps): Promise<State> {
@@ -235,7 +237,7 @@ export async function run(deps: Deps): Promise<State> {
   };
   const exhausted = (key: string) => (attempts[key] ?? 0) >= MAX_ATTEMPTS;
 
-  const household = await loadHousehold();
+  const household = await loadHousehold(deps.householdPath ?? householdPath);
   const seen = new Set(previous?.seen ?? []);
   // Ett meddelande som gett en post är läst, även om seen-listan tappat det.
   for (const item of [
@@ -311,8 +313,11 @@ export async function run(deps: Deps): Promise<State> {
   // räknare gjorde att sex anslagsfel kunde stoppa sex lyckade meddelanden.
   const msgFailures: string[] = [];
   const failedIds: string[] = [];
+  // Trådar vi faktiskt läste om i den här körningen.
+  const readThisRun = new Set<number>();
   let transportFailures = 0;
   const noticeFailures: string[] = [];
+  const homeworkFailures: string[] = [];
   const freshItems = new Map<string, Item[]>();  // nyckel: prefix eller "shared"
   const freshUnclear = new Map<string, Unclear[]>();
   const push = <T>(map: Map<string, T[]>, key: string, values: T[]) =>
@@ -369,6 +374,7 @@ export async function run(deps: Deps): Promise<State> {
       );
 
       seen.add(id);
+      readThisRun.add(id);
       console.log(`  [${id}] ${message.subject} → ${result.items.length} poster (${target})`);
     } catch (error) {
       // Meddelandet läggs medvetet INTE i seen: nästa körning får försöka igen.
@@ -382,12 +388,6 @@ export async function run(deps: Deps): Promise<State> {
     }
   }
 
-  for (const [label, list] of [
-    ["meddelande", msgFailures],
-    ["anslag", noticeFailures],
-  ] as const) {
-    if (list.length) console.error(`\n${list.length} ${label} kunde inte läsas:\n  ${list.join("\n  ")}`);
-  }
   // Systemiskt betyder transportfel hela vägen: nätet eller API:et är nere, och
   // i morgon kan det gå. Ett enda otolkbart meddelande är INTE systemiskt — att
   // räkna i stället för att klassificera lät ett sådant frysa sidan för evigt.
@@ -396,22 +396,9 @@ export async function run(deps: Deps): Promise<State> {
     msgFailures.length === toExtract.length &&
     transportFailures === msgFailures.length;
 
-  for (const key of failedIds) bumpAttempt(key);
-
   if (systemic) {
     throw new Error(
       `Samtliga ${toExtract.length} meddelanden föll på transportfel — publicerar inget.`,
-    );
-  }
-
-  // Uppgivna källor ska synas i varje körning, inte bara den gång de gavs upp.
-  const abandoned = Object.entries(attempts)
-    .filter(([, n]) => n >= MAX_ATTEMPTS)
-    .map(([key]) => key);
-  if (abandoned.length) {
-    console.warn(
-      `\n${abandoned.length} källa/källor har getts upp efter ${MAX_ATTEMPTS} försök: ` +
-        `${abandoned.join(", ")}. Det syns på sidan.`,
     );
   }
 
@@ -499,6 +486,82 @@ export async function run(deps: Deps): Promise<State> {
     }
   }
 
+  // Läxor ur kursdagböckerna. Nellies lärare lägger dem i veckoplaneringen som
+  // redan följs; Colins står bara här.
+  const seenHomework = new Set(previous?.seenHomework ?? []);
+  // \b är ASCII-baserat även med u-flaggan, så det matchar inte efter "ä" —
+  // "Ei läksyä!" slank igenom och blev en läxa som inte fanns.
+  const noHomework =
+    /^(?=[\s\S]{0,140}$)[\s\S]*(?:ingen läxa|inga läxor|läxfritt|ei läksyä|ei kotitehtäviä)(?!\p{L})/iu;
+  let homeworkBudget = MAX_HOMEWORK_PER_RUN;
+
+  for (const child of children) {
+    let entries: HomeworkEntry[] = [];
+    try {
+      entries = await wilma.homework(child.prefix);
+    } catch (error) {
+      console.warn(`  läxor för ${child.name}: ${error instanceof Error ? error.message : error}`);
+      continue;
+    }
+
+    const fresh = entries.filter((entry) => {
+      const id = `${entry.course}|${entry.date}|${entry.text}`;
+      if (seenHomework.has(id) || exhausted(`h${id}`)) return false;
+      // Åt båda hållen: dagbokens rad kan vara skriven i går och gälla på
+      // tisdag. Ett ensidigt fönster sållade bort varje framtida läxa.
+      const age = daysBetween(entry.date, today);
+      if (age > LOOKBACK_DAYS || age < -LOOKBACK_DAYS) return false;
+      // "Ei läksyä!" är ett svar, inte en uppgift — och gratis att sålla i kod.
+      if (noHomework.test(entry.text)) {
+        seenHomework.add(id);
+        return false;
+      }
+      return true;
+    });
+
+    for (const entry of fresh.slice(0, homeworkBudget)) {
+      homeworkBudget -= 1;
+      const id = `${entry.course}|${entry.date}|${entry.text}`;
+      try {
+        // Aldrig framåt: en referens i framtiden ger modellen ett orimligt
+        // "meddelandet är -3 dagar gammalt".
+        const reference = entry.date < today ? entry.date : today;
+        const sentAt = new Date(`${reference}T12:00:00+03:00`);
+        const facts = (household[slugOf(child)] ?? []).map(
+          (fact) => `${child.name.split(/\s+/)[0]}: ${fact}`,
+        );
+        const result = await extractOne(
+          `Kursdagbok, ${entry.course}, lektion ${entry.date}:\n\n${entry.text}`,
+          { sentAt, now, household: facts },
+        );
+        usage.push(...result.usage);
+        push(
+          freshItems,
+          child.prefix,
+          result.items.map((item) => ({
+            // Modellens klassificering står. Att tvinga info till laxa gjorde
+            // "Ei läksyä!" till en läxa som inte fanns.
+            kind: item.kind,
+            // Kursdagbokens datum är lektionens; läxan hör till nästa lektion om
+            // modellen inte hittat något annat datum i texten.
+            date: item.date || entry.date,
+            time: item.time,
+            sv: { text: item.text, note: item.note, dateLabel: item.date_label },
+            fi: { text: item.text_fi, note: item.note_fi, dateLabel: item.date_label_fi },
+            quote: item.quote,
+            messageId: 0,
+            addedOn: today,
+          })),
+        );
+        seenHomework.add(id);
+        console.log(`  läxa ${entry.date} ${entry.course} → ${result.items.length} poster (${child.name})`);
+      } catch (error) {
+        homeworkFailures.push(`${entry.course} ${entry.date}: ${error instanceof Error ? error.message : error}`);
+        if (!(error instanceof TransportError || error instanceof WilmaError)) failedIds.push(`h${id}`);
+      }
+    }
+  }
+
   // Helgvakt: skolan har inte lektioner på lördag eller söndag, så ett datum
   // som landar där är en feltolkning. Datumet tas bort, posten behålls odaterad.
   for (const list of freshItems.values()) {
@@ -517,9 +580,15 @@ export async function run(deps: Deps): Promise<State> {
   const merge = (old: Item[], fresh: Item[]): Item[] =>
     [...old.filter((item) => stillRelevant(item, today)), ...fresh]
       .filter(
+        // Datumet med i nyckeln: "Läs kapitel 3" i två kurser på två dagar är
+        // två läxor, inte en. Utan datum försvann den ena för alltid.
         (item, index, all) =>
-          all.findIndex((other) => other.messageId === item.messageId && other.sv.text === item.sv.text) ===
-          index,
+          all.findIndex(
+            (other) =>
+              other.messageId === item.messageId &&
+              other.date === item.date &&
+              other.sv.text === item.sv.text,
+          ) === index,
       )
       .sort((a, b) => {
         if (a.date && b.date) return a.date.localeCompare(b.date);
@@ -536,70 +605,24 @@ export async function run(deps: Deps): Promise<State> {
   const previousChild = (slug: string): ChildBlock | undefined =>
     previous?.children.find((c) => c.slug === slug);
 
-  // Läxor ur kursdagböckerna. Nellies lärare lägger dem i veckoplaneringen som
-  // redan följs; Colins står bara här.
-  const seenHomework = new Set(previous?.seenHomework ?? []);
-  const noHomework = /^(?=.{0,140}$)(?:.*\b(?:ingen läxa|inga läxor|läxfritt|ei läksyä|ei kotitehtäviä)\b)/i;
-  let homeworkBudget = MAX_HOMEWORK_PER_RUN;
+  for (const [label, list] of [
+    ["meddelande", msgFailures],
+    ["anslag", noticeFailures],
+    ["läxa", homeworkFailures],
+  ] as const) {
+    if (list.length) console.error(`\n${list.length} ${label} kunde inte läsas:\n  ${list.join("\n  ")}`);
+  }
+  for (const key of failedIds) bumpAttempt(key);
 
-  for (const child of children) {
-    let entries: HomeworkEntry[] = [];
-    try {
-      entries = await wilma.homework(child.prefix);
-    } catch (error) {
-      console.warn(`  läxor för ${child.name}: ${error instanceof Error ? error.message : error}`);
-      continue;
-    }
-
-    const fresh = entries.filter((entry) => {
-      const id = `${entry.course}|${entry.date}|${entry.text}`;
-      if (seenHomework.has(id) || exhausted(`h${id}`)) return false;
-      const age = daysBetween(entry.date, today);
-      if (age < 0 || age > LOOKBACK_DAYS) return false;
-      // "Ei läksyä!" är ett svar, inte en uppgift — och gratis att sålla i kod.
-      if (noHomework.test(entry.text)) {
-        seenHomework.add(id);
-        return false;
-      }
-      return true;
-    });
-
-    for (const entry of fresh.slice(0, homeworkBudget)) {
-      homeworkBudget -= 1;
-      const id = `${entry.course}|${entry.date}|${entry.text}`;
-      try {
-        const sentAt = new Date(`${entry.date}T12:00:00+03:00`);
-        const facts = (household[slugOf(child)] ?? []).map(
-          (fact) => `${child.name.split(/\s+/)[0]}: ${fact}`,
-        );
-        const result = await extractOne(
-          `Kursdagbok, ${entry.course}, lektion ${entry.date}:\n\n${entry.text}`,
-          { sentAt, now, household: facts },
-        );
-        usage.push(...result.usage);
-        push(
-          freshItems,
-          child.prefix,
-          result.items.map((item) => ({
-            kind: item.kind === "info" ? "laxa" : item.kind,
-            // Kursdagbokens datum är lektionens; läxan hör till nästa lektion om
-            // modellen inte hittat något annat datum i texten.
-            date: item.date || entry.date,
-            time: item.time,
-            sv: { text: item.text, note: item.note, dateLabel: item.date_label },
-            fi: { text: item.text_fi, note: item.note_fi, dateLabel: item.date_label_fi },
-            quote: item.quote,
-            messageId: 0,
-            addedOn: today,
-          })),
-        );
-        seenHomework.add(id);
-        console.log(`  läxa ${entry.date} ${entry.course} → ${result.items.length} poster (${child.name})`);
-      } catch (error) {
-        noticeFailures.push(`läxa ${entry.course} ${entry.date}: ${error instanceof Error ? error.message : error}`);
-        if (!(error instanceof TransportError || error instanceof WilmaError)) failedIds.push(`h${id}`);
-      }
-    }
+  // Uppgivna källor ska synas i varje körning, inte bara den gång de gavs upp.
+  const abandoned = Object.entries(attempts)
+    .filter(([, n]) => n >= MAX_ATTEMPTS)
+    .map(([key]) => key);
+  if (abandoned.length) {
+    console.warn(
+      `\n${abandoned.length} källa/källor har getts upp efter ${MAX_ATTEMPTS} försök: ` +
+        `${abandoned.join(", ")}. Det syns på sidan.`,
+    );
   }
 
   const state: State = {
@@ -608,11 +631,17 @@ export async function run(deps: Deps): Promise<State> {
     seen: [...seen].sort((a, b) => a - b),
     seenNotices: [...seenNotices].sort((a, b) => a - b),
     seenHomework: [...seenHomework].sort(),
+    // Bara trådar vi faktiskt läste får sitt antal uppdaterat. Annars skrevs
+    // svaret över av en misslyckad omläsning och kunde aldrig hittas igen.
     replies: Object.fromEntries(
       [...owners.keys()].map((id) => {
+        const previousCount = previous?.replies?.[String(id)] ?? 0;
+        // Bara den tråd vi läste om får sitt antal uppdaterat. "Finns i seen"
+        // var fel signal: den var sann sedan i går och skrev över svaret.
+        if (!readThisRun.has(id)) return [String(id), previousCount];
         const prefix = owners.get(id)![0]!;
         const message = (inboxes.get(prefix) ?? []).find((m) => m.id === id);
-        return [String(id), message?.replies ?? 0];
+        return [String(id), message?.replies ?? previousCount];
       }),
     ),
     attempts,
@@ -664,6 +693,8 @@ async function main(): Promise<void> {
 }
 
 // Bara när filen körs direkt — testerna importerar run() utan att starta något.
-if (process.argv[1] && /daily\.[tj]s$/.test(process.argv[1])) {
+// Jämförelse mot import.meta.url i stället för ett regexmönster: en tyst
+// no-op-körning är ett obehagligt felläge.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await main();
 }

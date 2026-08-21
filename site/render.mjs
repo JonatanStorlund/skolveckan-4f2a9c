@@ -164,19 +164,32 @@ function group(name, labelSv, labelFi, rows, extra = "") {
   );
 }
 
+/**
+ * Närhetssteg. Samma trappa i renderaren och i webbläsaren, så chipet har samma
+ * färg före och efter att skriptet kört.
+ */
+function proximity(days) {
+  if (days < 0) return "past";
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days <= 3) return "near";
+  if (days <= 7) return "week";
+  return "later";
+}
+
 /** Dagsrubrik i samma form som webbläsaren bygger, för läsbarhet utan JS. */
 function dayHeadMarkup(iso) {
   const l = dateLabels(iso);
   const days = Math.round(
     (Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${TODAY}T00:00:00Z`)) / 86400000,
   );
-  const state = days === 0 ? "today" : days === 1 ? "tomorrow" : "soon";
+  const state = proximity(days);
   const relSv = days === 0 ? "idag" : days === 1 ? "imorgon" : `om ${days} dagar`;
   const relFi = days === 0 ? "tänään" : days === 1 ? "huomenna" : `${days} päivän päästä`;
   const dk = key(l.sv, l.fi, "d");
   const rk = key(relSv, relFi, "d");
   return (
-    `<li class="dayhead" data-t="${dk}">${esc(l.sv)}` +
+    `<li class="dayhead" data-prox="${state}" data-t="${dk}">${esc(l.sv)}` +
     `<span class="dayrel" data-state="${state}" data-t="${rk}">${esc(relSv)}</span></li>`
   );
 }
@@ -301,6 +314,16 @@ const stampKey = key(`Uppdaterad ${data.stamp}`, `Päivitetty ${data.stamp}`, "h
 const titleKey = key("Skolveckan hemma", "Kouluviikko kotona", "hdr");
 const langKey = key("Språk", "Kieli", "hdr");
 const pickerKey = key("Barn", "Lapset", "hdr");
+const abandonedCount = (data.abandoned ?? []).length;
+const abandonedKey = key(
+  abandonedCount === 1
+    ? "En källa kunde inte läsas och har getts upp — kolla Wilma själv."
+    : `${abandonedCount} källor kunde inte läsas och har getts upp — kolla Wilma själv.`,
+  abandonedCount === 1
+    ? "Yhtä lähdettä ei voitu lukea ja se on hylätty — tarkista Wilma itse."
+    : `${abandonedCount} lähdettä ei voitu lukea ja ne on hylätty — tarkista Wilma itse.`,
+  "hdr",
+);
 const staleKey = key(
   "Sidan har inte uppdaterats på flera dygn — körningen kan ha slutat fungera.",
   "Sivua ei ole päivitetty useaan päivään — ajo voi olla rikki.",
@@ -349,6 +372,11 @@ ${css}
   </header>
 
   <p class="stale" id="stale" data-t="${staleKey}" hidden></p>
+${
+  abandonedCount
+    ? `  <p class="stale" data-t="${abandonedKey}">${esc(strings.sv[abandonedKey])}</p>`
+    : ""
+}
 
   <div class="picker" data-kid="${esc(data.children[0]?.slug ?? "")}">
 ${faces}
@@ -496,6 +524,16 @@ ${table(strings.fi)}
             const wd = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay();
             head.textContent = words.days[wd] + " " + parts[2] + "." + parts[1];
             const days = daysFrom(lastDate);
+            head.dataset.prox =
+              days === 0
+                ? "today"
+                : days === 1
+                  ? "tomorrow"
+                  : days <= 3
+                    ? "near"
+                    : days <= 7
+                      ? "week"
+                      : "later";
             const rel =
               days === 0
                 ? words.today
@@ -509,7 +547,16 @@ ${table(strings.fi)}
               span.className = "dayrel";
               // Tillståndet är det som gör i dag och imorgon typografiskt högre —
               // utan det såg "idag" ut precis som "om 20 dagar".
-              span.dataset.state = days === 0 ? "today" : days === 1 ? "tomorrow" : "soon";
+              span.dataset.state =
+              days === 0
+                ? "today"
+                : days === 1
+                  ? "tomorrow"
+                  : days <= 3
+                    ? "near"
+                    : days <= 7
+                      ? "week"
+                      : "later";
               span.textContent = rel;
               head.append(span);
             }
@@ -543,24 +590,31 @@ ${table(strings.fi)}
     function renderDates(words) {
       for (const el of document.querySelectorAll(".rel[data-date]")) {
         const days = daysFrom(el.dataset.date);
-        let label, state;
-        if (days === 0) {
-          label = words.today;
-          state = "soon";
-        } else if (days === 1) {
-          label = words.tomorrow;
-          state = "soon";
-        } else if (days === -1) {
-          label = words.yesterday;
-          state = "past";
-        } else if (days < 0) {
-          label = words.agoDays(Math.abs(days));
-          state = "past";
-        } else {
-          label = words.inDays(days);
-          state = days <= 7 ? "soon" : "later";
-        }
-        el.textContent = label;
+        // Samma trappa som renderarens proximity().
+        const state =
+          days < 0
+            ? "past"
+            : days === 0
+              ? "today"
+              : days === 1
+                ? "tomorrow"
+                : days <= 3
+                  ? "near"
+                  : days <= 7
+                    ? "week"
+                    : "later";
+        const row = el.closest("li");
+        if (row && !row.classList.contains("dayhead")) row.dataset.prox = state;
+        el.textContent =
+          days === 0
+            ? words.today
+            : days === 1
+              ? words.tomorrow
+              : days === -1
+                ? words.yesterday
+                : days < 0
+                  ? words.agoDays(Math.abs(days))
+                  : words.inDays(days);
         el.dataset.state = state;
       }
     }
