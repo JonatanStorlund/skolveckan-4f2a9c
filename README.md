@@ -137,12 +137,37 @@ läst.
 - **Meddelandetexten hämtas som HTML.** Den dokumenterade JSON-varianten
   (`/messages/index_json/<id>`) svarar 403 på den här installationen; brödtexten
   ligger i `div.ckeditor`.
+- **Länkadresser följer med texten.** Nellies klasslärare skickar veckoplaneringen
+  som en länk vars text bara säger "Vecka 35" — strippas taggarna rakt av
+  försvinner hela innehållet. `stripTags` skriver därför om `<a>` till
+  `text (adress)`. Adressen står i parentes och inte i `<>`, annars stryker
+  taggrensningen den som om den var en tagg.
 - **Inloggningen kräver en parad kaka.** `GET /index_json` ger både `SessionID` i
   kroppen och `Wilma2LoginID` som kaka, med samma `cnf.kid` i JWT:n. Skickas inte
   kakan med i `POST /login` nekas inloggningen — och curl tappar den tyst, eftersom
   sessionskakor inte skrivs till en cookie-jar-fil.
 - **Oofficiell API.** Wilma har ingen öppen API för vårdnadshavare — det här är
   samma anrop som webbklienten gör. Det kan sluta fungera när Visma ändrar något.
+
+### Veckoplaneringen ligger utanför Wilma
+
+Nellies veckoplanering kommer varje fredag som ett länkat Google-dokument i
+"Info vecka N". Dokumentet är delat med länk, så det går att läsa utan
+inloggning — och som ren text utan att tolka Docs-HTML:
+
+```bash
+curl -sL "https://docs.google.com/document/d/<id>/export?format=txt"
+```
+
+Där ligger det som inte står i meddelandet: läxorna dag för dag, lektionerna för
+veckan och en "På gång"-ruta. Meddelandet och dokumentet kan säga emot varandra —
+inför vecka 35 stod fel sluttid (12.30) i pappersversionen som eleverna fick hem,
+och läraren rättade den i Wilma-meddelandet (12.15). Meddelandet är färskare;
+låt det vinna, och skriv ut rättelsen så att den som har lappen på kylskåpet
+förstår varför tiderna skiljer sig.
+
+Läxraden i dokumentet står under en veckodag men säger inte om läxan *ges* eller
+*ska vara gjord* den dagen. Sidan visar dagen som den står, inget mer.
 
 ## Väg 3: delad sida
 
@@ -199,6 +224,9 @@ Två saker som håller sidan hederlig när den blir gammal: relativa dagar ("om 
 dagar") räknas i webbläsaren utifrån `data-date`, och förbrukade tider tas bort i
 stället för att stå kvar som kommande. Kryssen sparas per läsare i webbläsaren, så
 den andra föräldern ser sina egna kryss, inte dina.
+
+Raderna kommer ur Wilma-meddelandena **och** ur veckoplaneringen — sidfoten säger
+vilket, och tidsstämpeln uppe till vänster räknar båda källorna.
 
 Innehåller barnens förnamn, skolor och klasser — men inga efternamn och inga
 lärartelefonnummer, även när meddelandena hade dem.

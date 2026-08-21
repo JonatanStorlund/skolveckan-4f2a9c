@@ -15,10 +15,14 @@ export const ItemKind = z.enum([
 
 export const ItemSchema = z.object({
   text: z.string().describe("Swedish imperative or plain statement, max 10 words"),
+  text_fi: z.string().describe("The same line in Finnish, reading naturally to a Finnish parent"),
   kind: ItemKind,
   date: z.string().describe("YYYY-MM-DD, or empty string when no date can be determined"),
   date_label: z.string().describe('Short Swedish label, e.g. "tis 26.8". Empty if undated.'),
+  date_label_fi: z.string().describe('Finnish label, e.g. "ti 26.8.". Empty if undated.'),
   time: z.string().describe('Clock time if stated, e.g. "08:15-12:00". Empty otherwise.'),
+  note: z.string().describe("One short Swedish clarifying line, max 15 words. Empty when unneeded."),
+  note_fi: z.string().describe("The same clarification in Finnish. Empty when unneeded."),
   quote: z.string().describe("Verbatim snippet from the original message, original language"),
 });
 
@@ -26,7 +30,14 @@ export const TldrSchema = z.object({
   language_in: z.enum(["sv", "fi", "en", "other"]),
   subject: z.string().describe("Max 6 words: class, group, teacher or trip concerned. Empty if unclear."),
   items: z.array(ItemSchema),
-  uncertain: z.array(z.string()).describe("Short Swedish lines about anything ambiguous or contradictory"),
+  uncertain: z
+    .array(
+      z.object({
+        sv: z.string().describe("Short Swedish line about something ambiguous"),
+        fi: z.string().describe("The same line in Finnish"),
+      }),
+    )
+    .describe("Anything ambiguous or contradictory — never turned into a confident item"),
 });
 
 export type Tldr = z.infer<typeof TldrSchema>;

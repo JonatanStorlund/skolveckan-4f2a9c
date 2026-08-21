@@ -37,11 +37,31 @@ gånger.
 5. **`wilma_read`** med `child` och `id` för varje valt meddelande. Läs hela — det
    praktiska ligger nästan alltid inbakat mitt i prosan, inte i slutet.
 
-6. **`wilma_exams`** när frågan rör prov, förhör, veckan som kommer, eller en
+6. **Följ länken till veckoplaneringen.** Nellies klasslärare skickar den varje
+   fredag som ett Google-dokument länkat i "Info vecka N"; `wilma_read` ger
+   adressen i parentes efter länktexten. Dokumentet är delat med länk — läs det
+   som ren text:
+
+   ```bash
+   curl -sL "https://docs.google.com/document/d/<id>/export?format=txt"
+   ```
+
+   Där ligger läxorna dag för dag och en "På gång"-ruta, alltså sådant som inte
+   står i själva meddelandet. Två saker att hålla i:
+   - **Meddelandet vinner över dokumentet.** Läraren rättar ofta pappersversionen
+     i Wilma-texten. Säger de olika: följ meddelandet och nämn rättelsen, så att
+     den som har lappen hemma förstår skillnaden.
+   - **Läxraden står under en veckodag** men säger inte om läxan ges eller ska
+     vara gjord den dagen. Redovisa dagen som den står; gissa inte vilket.
+
+   Får du 404 eller en inloggningssida är dokumentet inte länkdelat — säg det i
+   stället för att fylla i luckan.
+
+7. **`wilma_exams`** när frågan rör prov, förhör, veckan som kommer, eller en
    allmän översikt. Prov står inte i meddelandena — de finns bara i
    provkalendern, så en översikt utan `wilma_exams` missar dem.
 
-7. **Extrahera enligt `rules/extraction.md`.** Kort sagt: bara det som står i
+8. **Extrahera enligt `rules/extraction.md`.** Kort sagt: bara det som står i
    meddelandet, dagens datum som referens för "på tisdag", obligatoriskt citat per
    rad, oklarheter separerade i stället för gissade.
 

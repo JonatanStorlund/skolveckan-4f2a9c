@@ -30,6 +30,25 @@ hoist(/<style>[\s\S]*?<\/style>/i);
 
 const title = /<title>([^<]*)<\/title>/i.exec(source)?.[1] ?? "Skolveckan hemma";
 
+// Språken bor i samma tabell just för att en text inte ska kunna glömmas bort på
+// det ena språket. Bygget vaktar det: nyckelmängderna måste vara identiska.
+const keysOf = (lang) => {
+  const start = source.indexOf(`      ${lang}: {`);
+  const end = source.indexOf("\n      },", start);
+  if (start === -1 || end === -1) throw new Error(`Hittade inte STRINGS.${lang}.`);
+  return new Set([...source.slice(start, end).matchAll(/^\s{8}(\w+):/gm)].map((m) => m[1]));
+};
+const sv = keysOf("sv");
+const fi = keysOf("fi");
+const missing = [
+  ...[...sv].filter((k) => !fi.has(k)).map((k) => `fi saknar ${k}`),
+  ...[...fi].filter((k) => !sv.has(k)).map((k) => `sv saknar ${k}`),
+];
+if (missing.length) {
+  console.error(`Språken har glidit isär:\n  ${missing.join("\n  ")}`);
+  process.exit(1);
+}
+
 const page = `<!doctype html>
 <html lang="sv">
 <head>
@@ -55,4 +74,4 @@ writeFileSync(path.join(outDir, "robots.txt"), "User-agent: *\nDisallow: /\n");
 // Utan .nojekyll gömmer GitHub Pages filer som börjar med understreck.
 writeFileSync(path.join(outDir, ".nojekyll"), "");
 
-console.log(`dist/index.html — ${page.length} tecken, ${head.length} head-taggar`);
+console.log(`dist/index.html — ${page.length} tecken, ${head.length} head-taggar, ${sv.size} texter x2`);

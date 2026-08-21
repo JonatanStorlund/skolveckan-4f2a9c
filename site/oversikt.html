@@ -387,12 +387,45 @@
     outline-offset: 2px;
   }
 
-  li:has(input:checked) .what,
-  li:has(input:checked) .icon {
+  /* Bara punktens egen kryssruta gråar punkten — inte en dagsläxa längre in. */
+  li:has(> label.what > input:checked) .what,
+  li:has(> label.what > input:checked) .icon {
     color: var(--ink-mute);
   }
 
-  li:has(input:checked) label.what span {
+  li:has(> label.what > input:checked) label.what span {
+    text-decoration: line-through;
+  }
+
+  /* Läxorna: en rad per dag inne i samma punkt, inte fem punkter i listan. */
+  .days {
+    grid-column: 2;
+    margin-top: 0.4rem;
+    gap: 0.3rem;
+  }
+
+  .days li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3rem 0.45rem;
+    padding: 0;
+    border-top: 0;
+    font-size: 0.92rem;
+  }
+
+  .days label {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .days li:has(input:checked) span {
+    color: var(--ink-mute);
+  }
+
+  .days li:has(input:checked) label span {
     text-decoration: line-through;
   }
 
@@ -413,6 +446,14 @@
     border-radius: 3px;
     font-size: 0.85rem;
     color: var(--ink-soft);
+  }
+
+  .unclear p {
+    margin: 0;
+  }
+
+  .unclear p + p {
+    margin-top: 0.4rem;
   }
 
   .unclear strong {
@@ -483,7 +524,7 @@
 
 <div class="board">
   <header>
-    <p class="eyebrow" data-t="stamp">Läget fredag 21.8 · ur 11 Wilma-meddelanden</p>
+    <p class="eyebrow" data-t="stamp">Läget fredag 21.8 · 11 Wilma-meddelanden + veckoplanering v.35</p>
     <div class="lang" role="group" data-t-label="langGroup" aria-label="Språk">
       <button type="button" data-lang="sv" aria-pressed="true">SV</button>
       <button type="button" data-lang="fi" aria-pressed="false">FI</button>
@@ -576,6 +617,78 @@
       <p class="where">Bonäs skola · 2b</p>
       <ul>
         <li>
+          <span class="icon">🎒</span>
+          <label class="what"
+            ><input type="checkbox" data-id="nellie-promenad" /><span data-t="nPromenad"
+              >Utekläder och skor på tisdag — gympan blir promenad</span
+            ></label
+          >
+          <div class="meta">
+            <span class="when" data-t="nPromenadWhen">tis 25.8</span>
+            <span class="rel" data-date="2026-08-25"></span>
+          </div>
+          <p class="caveat" data-t="nPromenadNote">
+            Ombyteskläder behövs inte, men kläder och skor som håller för promenad och
+            utelek.
+          </p>
+        </li>
+        <li>
+          <span class="icon">ℹ️</span>
+          <span class="what" data-t="nEftis">Eftis börjar en halv timme tidigare på tisdag</span>
+          <div class="meta">
+            <span class="when" data-t="nEftisWhen">tis 25.8</span>
+            <span class="rel" data-date="2026-08-25"></span>
+          </div>
+          <p class="caveat" data-t="nEftisNote">
+            Papperslappen hem säger 12.30 — rätt tid är 12.15, enligt Annett.
+          </p>
+        </li>
+        <li>
+          <span class="icon">📖</span>
+          <span class="what" data-t="nLaxor">Läxor vecka 35</span>
+          <ul class="days">
+            <li>
+              <label
+                ><input type="checkbox" data-id="nellie-lax-mon" /><span data-t="nLaxMon"
+                  >Matematik: Kom ihåg s. 27</span
+                ></label
+              >
+              <span class="when" data-t="nLaxMonWhen">mån 24.8</span>
+              <span class="rel" data-date="2026-08-24"></span>
+            </li>
+            <li>
+              <label
+                ><input type="checkbox" data-id="nellie-lax-tue" /><span data-t="nLaxTue"
+                  >Läsläxa: Hemligheten kap. 2, s. 6–7</span
+                ></label
+              >
+              <span class="when" data-t="nLaxTueWhen">tis 25.8</span>
+              <span class="rel" data-date="2026-08-25"></span>
+            </li>
+            <li>
+              <label
+                ><input type="checkbox" data-id="nellie-lax-wed" /><span data-t="nLaxWed"
+                  >Matematik: Kom ihåg s. 31</span
+                ></label
+              >
+              <span class="when" data-t="nLaxWedWhen">ons 26.8</span>
+              <span class="rel" data-date="2026-08-26"></span>
+            </li>
+            <li>
+              <label
+                ><input type="checkbox" data-id="nellie-lax-thu" /><span data-t="nLaxThu"
+                  >Matematik: Rutan s. 35 · läsläxa s. 8–9</span
+                ></label
+              >
+              <span class="when" data-t="nLaxThuWhen">tor 27.8</span>
+              <span class="rel" data-date="2026-08-27"></span>
+            </li>
+          </ul>
+          <p class="caveat" data-t="nLaxorNote">
+            Ur veckoplaneringen. Fredag är läxfritt.
+          </p>
+        </li>
+        <li>
           <span class="icon">📍</span>
           <span class="what" data-t="nFoto">Skolfotografering</span>
           <div class="meta">
@@ -636,10 +749,14 @@
       </ul>
       <div class="unclear">
         <strong data-t="unclearLabel">Oklart</strong>
-        <span data-t="unclearText"
-          >Föräldramöte hålls i höst, men datum är inte bestämt — skolan väntar på
-          besked om invigning och öppet hus.</span
-        >
+        <p data-t="unclearText">
+          Föräldramöte hålls i höst, men datum är inte bestämt — skolan väntar på besked
+          om invigning och öppet hus.
+        </p>
+        <p data-t="unclearText2">
+          Måndagens slöjd har temat "Äpplen" — veckoplaneringen säger inte om något ska
+          tas med hemifrån.
+        </p>
       </div>
     </section>
   </div>
@@ -665,7 +782,7 @@
     // glömmas bort på finska.
     const STRINGS = {
       sv: {
-        stamp: "Läget fredag 21.8 · ur 11 Wilma-meddelanden",
+        stamp: "Läget fredag 21.8 · 11 Wilma-meddelanden + veckoplanering v.35",
         title: "Skolveckan hemma",
         langGroup: "Språk",
         pickerLabel: "Barn",
@@ -680,6 +797,23 @@
         cPhone: "Mobiler samlas in under första lektionen",
         cPhoneNote: "Återfås vid skoldagens slut. Nytt för läsåret.",
         cBook: "Livsåskådning åk 7 har ingen lärobok",
+        nPromenad: "Utekläder och skor på tisdag — gympan blir promenad",
+        nPromenadWhen: "tis 25.8",
+        nPromenadNote:
+          "Ombyteskläder behövs inte, men kläder och skor som håller för promenad och utelek.",
+        nEftis: "Eftis börjar en halv timme tidigare på tisdag",
+        nEftisWhen: "tis 25.8",
+        nEftisNote: "Papperslappen hem säger 12.30 — rätt tid är 12.15, enligt Annett.",
+        nLaxor: "Läxor vecka 35",
+        nLaxMon: "Matematik: Kom ihåg s. 27",
+        nLaxMonWhen: "mån 24.8",
+        nLaxTue: "Läsläxa: Hemligheten kap. 2, s. 6–7",
+        nLaxTueWhen: "tis 25.8",
+        nLaxWed: "Matematik: Kom ihåg s. 31",
+        nLaxWedWhen: "ons 26.8",
+        nLaxThu: "Matematik: Rutan s. 35 · läsläxa s. 8–9",
+        nLaxThuWhen: "tor 27.8",
+        nLaxorNote: "Ur veckoplaneringen. Fredag är läxfritt.",
         nFoto: "Skolfotografering",
         nFotoWhen: "tor–fre 10–11.9",
         nKompis: "Kryssa inte i kompisfoto på blanketten",
@@ -699,9 +833,11 @@
         unclearLabel: "Oklart",
         unclearText:
           "Föräldramöte hålls i höst, men datum är inte bestämt — skolan väntar på besked om invigning och öppet hus.",
+        unclearText2:
+          "Måndagens slöjd har temat \u201dÄpplen\u201d — veckoplaneringen säger inte om något ska tas med hemifrån.",
         footLead: "Snabbläst ur Wilma.",
         footBody:
-          "Varje rad kommer ur ett riktigt meddelande; inget är tillagt. Tider som gällde vecka 34 är förbrukade och står inte kvar här.",
+          "Varje rad kommer ur ett riktigt Wilma-meddelande eller ur veckoplaneringen; inget är tillagt. Tider som gällde vecka 34 är förbrukade och står inte kvar här.",
         footNote:
           "Colin och Nellie har separata inkorgar i Wilma — därför en spalt var, och ett gemensamt band för det som gick ut till hela kommunen.",
         today: "idag",
@@ -711,7 +847,7 @@
         agoDays: (n) => `${n} dagar sedan`,
       },
       fi: {
-        stamp: "Tilanne perjantai 21.8. · 11 Wilma-viestistä",
+        stamp: "Tilanne perjantai 21.8. · 11 Wilma-viestiä + viikkosuunnitelma vk 35",
         title: "Kouluviikko kotona",
         langGroup: "Kieli",
         pickerLabel: "Lapset",
@@ -727,6 +863,23 @@
         cPhone: "Puhelimet kerätään ensimmäisellä tunnilla",
         cPhoneNote: "Palautetaan koulupäivän päätteeksi. Uutta tänä lukuvuonna.",
         cBook: "7. luokan elämänkatsomustiedossa ei ole oppikirjaa",
+        nPromenad: "Tiistaina ulkovaatteet ja kengät — liikuntatunti on kävelyretki",
+        nPromenadWhen: "ti 25.8.",
+        nPromenadNote:
+          "Vaihtovaatteita ei tarvita, mutta vaatteet ja kengät jotka kestävät kävelyn ja ulkoleikin.",
+        nEftis: "Iltapäivätoiminta alkaa tiistaina puoli tuntia aiemmin",
+        nEftisWhen: "ti 25.8.",
+        nEftisNote: "Kotiin tulleessa paperissa lukee 12.30 — oikea aika on 12.15, Annettin mukaan.",
+        nLaxor: "Läksyt viikolla 35",
+        nLaxMon: "Matematiikka: Muista s. 27",
+        nLaxMonWhen: "ma 24.8.",
+        nLaxTue: "Lukuläksy: Hemligheten luku 2, s. 6–7",
+        nLaxTueWhen: "ti 25.8.",
+        nLaxWed: "Matematiikka: Muista s. 31",
+        nLaxWedWhen: "ke 26.8.",
+        nLaxThu: "Matematiikka: Ruutu s. 35 · lukuläksy s. 8–9",
+        nLaxThuWhen: "to 27.8.",
+        nLaxorNote: "Viikkosuunnitelmasta. Perjantai on läksytön.",
         nFoto: "Koulukuvaus",
         nFotoWhen: "to–pe 10.–11.9.",
         nKompis: "Älä rastita kaverikuvaa lomakkeeseen",
@@ -746,9 +899,11 @@
         unclearLabel: "Epäselvää",
         unclearText:
           "Vanhempainilta pidetään syksyllä, mutta päivää ei ole päätetty — koulu odottaa tietoa vihkiäisistä ja avoimien ovien päivästä.",
+        unclearText2:
+          "Maanantain käsityön teemana on \u201domenat\u201d — viikkosuunnitelmassa ei sanota, pitääkö kotoa ottaa jotain mukaan.",
         footLead: "Pikaluettu Wilmasta.",
         footBody:
-          "Jokainen rivi tulee oikeasta viestistä; mitään ei ole lisätty. Viikkoa 34 koskeneet ajat ovat menneet, eivätkä ne ole enää tässä.",
+          "Jokainen rivi tulee oikeasta Wilma-viestistä tai viikkosuunnitelmasta; mitään ei ole lisätty. Viikkoa 34 koskeneet ajat ovat menneet, eivätkä ne ole enää tässä.",
         footNote:
           "Colinilla ja Nelliellä on Wilmassa erilliset postilaatikot — siksi oma palsta kummallekin ja yhteinen palkki sille mikä lähti koko kunnalle.",
         today: "tänään",

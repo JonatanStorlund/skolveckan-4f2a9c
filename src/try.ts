@@ -12,10 +12,12 @@ console.log(`\n${result.subject || "(inget ämne)"}  [in: ${result.language_in}]
 for (const item of result.items) {
   const when = item.date_label ? `  (${item.date_label}${item.time ? " " + item.time : ""})` : "";
   console.log(`• ${item.text}${when}`);
+  console.log(`  fi: ${item.text_fi}`);
+  if (item.note) console.log(`  not: ${item.note}  /  ${item.note_fi}`);
   console.log(`    ↳ "${item.quote}"  [${item.kind}${item.date ? " " + item.date : ""}]`);
 }
 if (result.uncertain.length) {
   console.log("\nOklart:");
-  for (const line of result.uncertain) console.log(`  ? ${line}`);
+  for (const line of result.uncertain) console.log(`  ? ${line.sv}  /  ${line.fi}`);
 }
 console.log();

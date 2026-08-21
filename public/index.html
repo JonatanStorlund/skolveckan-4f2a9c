@@ -224,7 +224,7 @@
 
         const uncertain = data.uncertain?.length
           ? `<div class="uncertain"><strong>Oklart i meddelandet</strong><ul>${data.uncertain
-              .map((u) => `<li>${esc(u)}</li>`)
+              .map((u) => `<li>${esc(u.sv ?? u)}</li>`)
               .join("")}</ul></div>`
           : "";
 

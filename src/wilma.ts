@@ -244,6 +244,18 @@ export class Wilma {
   }
 
   /**
+   * Elevfoto. Odokumenterad endpoint som ger en liten JPEG per roll.
+   * Saknas fotot svarar Wilma inte med en bild — då returneras null.
+   */
+  async photo(prefix: string): Promise<Uint8Array | null> {
+    const response = await this.authed(`${prefix}/photo`);
+    const type = response.headers.get("content-type") ?? "";
+    if (!response.ok || !type.startsWith("image/")) return null;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return bytes.byteLength > 0 ? bytes : null;
+  }
+
+  /**
    * Prov ur Wilmas provkalender ("Kokeet").
    *
    * `/exams/calendar/index_json` svarar HTML med content-type application/json,
@@ -341,6 +353,13 @@ function decodeEntities(text: string): string {
 function stripTags(html: string): string {
   const text = html
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
+    // Länkadressen är ofta hela poängen med raden — veckoplaneringen ligger i en
+    // länk vars text bara säger "Vecka 35". Adressen i parentes, inte i <>, för
+    // annars stryker taggrensningen nedan den som om den var en tagg.
+    .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, label: string) => {
+      const shown = label.replace(/<[^>]+>/g, "").trim();
+      return !shown || shown === href ? ` ${href} ` : ` ${shown} (${href}) `;
+    })
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
     .replace(/<li[^>]*>/gi, "• ")
