@@ -118,6 +118,9 @@ som webbappen, med ett avsnitt per barn.
 | `wilma_read` | Hela texten i ett meddelande, för ett angivet barn |
 | `wilma_exams` | Kommande (eller hållna) prov ur provkalendern, per barn |
 
+Elevfoto finns på `/!<prefix>/photo` (JPEG). Inget verktyg exponerar det — det
+hämtades en gång till `site/photos/`.
+
 Läs-bara med flit: servern kan inte skicka meddelanden, svara eller markera som
 läst.
 
@@ -146,6 +149,18 @@ läst.
 `site/oversikt.html` är veckans läge som en sida att dela med den andra föräldern:
 gemensamt band för det som gick till hela kommunen, en spalt per barn, kryssrutor
 för det som går att göra klart.
+
+Barnen ligger i **flikar** med foto, klass och skola i flikhuvudet — bättre än två
+spalter på en telefon, och det syns direkt vems lista man tittar på. Valet av flik
+sparas lokalt, tangentbord fungerar (piltangenter), och panelerna är riktiga
+`tabpanel`-element så skärmläsare hänger med.
+
+Fotona kommer ur Wilma, `/!<prefix>/photo` (JPEG, 130×139), och bäddas in som
+data-URI:er så sidan är självbärande. **Den publika utgåvan ligger i ett publikt
+GitHub-repo**, så där är fotona läsbara för vem som helst som hittar adressen. Vill
+du ha dem bara i den privata artefakten: byt `src` mot ett monogram i
+`site/oversikt.html` innan `node site/build.mjs`, och publicera artefakten från
+originalfilen.
 
 Sidan finns på **svenska och finska** med en väljare uppe till höger. Båda språken
 bor i samma `STRINGS`-tabell i sidan, så en ändring på ett språk kan inte glömmas
