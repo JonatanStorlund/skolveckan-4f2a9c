@@ -49,6 +49,8 @@ export interface Localized {
 
 export interface Item {
   kind: string;
+  /** Stabil källnyckel för poster utan meddelande-id (läxor). */
+  source?: string;
   /** ISO-datum eller tom sträng. */
   date: string;
   time: string;
@@ -289,12 +291,16 @@ export async function run(deps: Deps): Promise<State> {
       }
     })
     .filter(({ id, message }) => {
-      if (exhausted(`m${id}`)) return false;
-      // Ett svar i en tråd vi redan läst är nytt innehåll: läraren kan ha
-      // föreslagit en mötestid eller besvarat en ledighetsansökan.
+      // Svarsjämförelsen FÖRE exhausted: tre misslyckanden gällde det gamla
+      // innehållet, och ett svar är nytt innehåll. Då förtjänar tråden en ny
+      // budget i stället för att falla på första hicka.
       const before = previous?.replies?.[String(id)] ?? 0;
-      if (seen.has(id)) return message.replies > before;
-      return true;
+      if (message.replies > before) {
+        delete attempts[`m${id}`];
+        return true;
+      }
+      if (exhausted(`m${id}`)) return false;
+      return !seen.has(id);
     })
     .sort((a, b) => b.message.timestamp.localeCompare(a.message.timestamp));
 
@@ -489,10 +495,13 @@ export async function run(deps: Deps): Promise<State> {
   // Läxor ur kursdagböckerna. Nellies lärare lägger dem i veckoplaneringen som
   // redan följs; Colins står bara här.
   const seenHomework = new Set(previous?.seenHomework ?? []);
-  // \b är ASCII-baserat även med u-flaggan, så det matchar inte efter "ä" —
-  // "Ei läksyä!" slank igenom och blev en läxa som inte fanns.
+  // Bara när HELA posten är ett nekande. Substrängmatchning kastade bort
+  // "Ingen läxa i matematik, men läs kapitel 3 till fredag" i sin helhet — samma
+  // fel som trimDoc gjorde: ett nyckelord slängde den handlingsbara halvan.
+  // Asymmetrin motiverar försiktigheten: en falsk negativ kostar ett Haiku-anrop,
+  // en falsk positiv kostar föräldern en läxa för alltid.
   const noHomework =
-    /^(?=[\s\S]{0,140}$)[\s\S]*(?:ingen läxa|inga läxor|läxfritt|ei läksyä|ei kotitehtäviä)(?!\p{L})/iu;
+    /^\W*(?:ingen läxa|inga läxor|läxfritt|ei läksyä|ei kotitehtäviä)(?:\s+(?:denna vecka|idag|tälle viikolle|tänään))?\W*$/iu;
   let homeworkBudget = MAX_HOMEWORK_PER_RUN;
 
   for (const child of children) {
@@ -513,13 +522,19 @@ export async function run(deps: Deps): Promise<State> {
       if (age > LOOKBACK_DAYS || age < -LOOKBACK_DAYS) return false;
       // "Ei läksyä!" är ett svar, inte en uppgift — och gratis att sålla i kod.
       if (noHomework.test(entry.text)) {
+        console.log(`  läxa ${entry.date} ${entry.course}: inget att göra, hoppar över`);
         seenHomework.add(id);
         return false;
       }
       return true;
     });
 
-    for (const entry of fresh.slice(0, homeworkBudget)) {
+    // Närmast först: budgeten gick tidigare till de äldsta raderna, vars poster
+    // renderaren ändå gömmer, medan veckans läxor fick vänta till nästa dygn.
+    const byProximity = [...fresh].sort(
+      (a, b) => Math.abs(daysBetween(a.date, today)) - Math.abs(daysBetween(b.date, today)),
+    );
+    for (const entry of byProximity.slice(0, homeworkBudget)) {
       homeworkBudget -= 1;
       const id = `${entry.course}|${entry.date}|${entry.text}`;
       try {
@@ -545,10 +560,13 @@ export async function run(deps: Deps): Promise<State> {
             // Kursdagbokens datum är lektionens; läxan hör till nästa lektion om
             // modellen inte hittat något annat datum i texten.
             date: item.date || entry.date,
+            source: id,
             time: item.time,
             sv: { text: item.text, note: item.note, dateLabel: item.date_label },
             fi: { text: item.text_fi, note: item.note_fi, dateLabel: item.date_label_fi },
             quote: item.quote,
+            // Delat id (0) lämnade datumet som enda skiljemärke, och helgvakten
+            // tar bort datum. Ett eget source-fält överlever det.
             messageId: 0,
             addedOn: today,
           })),
@@ -562,23 +580,15 @@ export async function run(deps: Deps): Promise<State> {
     }
   }
 
-  // Helgvakt: skolan har inte lektioner på lördag eller söndag, så ett datum
-  // som landar där är en feltolkning. Datumet tas bort, posten behålls odaterad.
-  for (const list of freshItems.values()) {
-    for (const item of list) {
-      if (!item.date) continue;
-      const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
-      if ((weekday !== 0 && weekday !== 6) || WEEKEND_WORDS.test(item.quote)) continue;
-      console.warn(`  helgdatum ${item.date} på "${item.sv.text}" — datumet tas bort`);
-      item.date = "";
-      item.sv.dateLabel = "";
-      item.fi.dateLabel = "";
-    }
-  }
-
   // Steg 5: slå ihop gammalt och nytt, städa det förbrukade.
+  // En tråd vi läst om innehåller originalet PLUS svaren, så dess gamla poster
+  // är ersatta, inte kompletterade. Grinden är readThisRun: en tråd som föll är
+  // aldrig där, så ingenting kan tappas utan att något sätts i dess ställe.
+  const superseded = (item: Item): boolean =>
+    item.messageId > 0 && readThisRun.has(item.messageId);
+
   const merge = (old: Item[], fresh: Item[]): Item[] =>
-    [...old.filter((item) => stillRelevant(item, today)), ...fresh]
+    [...old.filter((item) => stillRelevant(item, today) && !superseded(item)), ...fresh]
       .filter(
         // Datumet med i nyckeln: "Läs kapitel 3" i två kurser på två dagar är
         // två läxor, inte en. Utan datum försvann den ena för alltid.
@@ -586,6 +596,7 @@ export async function run(deps: Deps): Promise<State> {
           all.findIndex(
             (other) =>
               other.messageId === item.messageId &&
+              (other.source ?? "") === (item.source ?? "") &&
               other.date === item.date &&
               other.sv.text === item.sv.text,
           ) === index,
@@ -662,6 +673,21 @@ export async function run(deps: Deps): Promise<State> {
       };
     }),
   };
+
+  // Helgvakt över HELA resultatet, inte bara det nyextraherade: cachen kan bära
+  // poster från före referensdatum-fixen, och de hade ett lördagsdatum.
+  let stripped = 0;
+  for (const item of [...state.shared, ...state.children.flatMap((c) => c.items)]) {
+    if (!item.date) continue;
+    const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
+    if ((weekday !== 0 && weekday !== 6) || WEEKEND_WORDS.test(item.quote)) continue;
+    console.warn(`  helgdatum ${item.date} på "${item.sv.text}" — datumet tas bort`);
+    item.date = "";
+    item.sv.dateLabel = "";
+    item.fi.dateLabel = "";
+    stripped += 1;
+  }
+  if (stripped) console.log(`${stripped} helgdaterad(e) post(er) städade.`);
 
   await mkdir(path.dirname(stateFile), { recursive: true });
   await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);

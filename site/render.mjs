@@ -462,6 +462,16 @@ ${table(strings.fi)}
 
     const daysFrom = (isoDate) => Math.round((new Date(isoDate + "T00:00:00") - today) / 86400000);
 
+    /** En trappa, tre användare. Samma steg som proximity() i render.mjs. */
+    function proximity(days) {
+      if (days < 0) return "past";
+      if (days === 0) return "today";
+      if (days === 1) return "tomorrow";
+      if (days <= 3) return "near";
+      if (days <= 7) return "week";
+      return "later";
+    }
+
     /**
      * Vilket fack en post hör till I DAG. Renderaren placerade den en gång, men
      * sidan lever vidare i dagar — därför räknas facket om vid varje visning.
@@ -524,16 +534,7 @@ ${table(strings.fi)}
             const wd = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay();
             head.textContent = words.days[wd] + " " + parts[2] + "." + parts[1];
             const days = daysFrom(lastDate);
-            head.dataset.prox =
-              days === 0
-                ? "today"
-                : days === 1
-                  ? "tomorrow"
-                  : days <= 3
-                    ? "near"
-                    : days <= 7
-                      ? "week"
-                      : "later";
+            head.dataset.prox = proximity(days);
             const rel =
               days === 0
                 ? words.today
@@ -547,16 +548,7 @@ ${table(strings.fi)}
               span.className = "dayrel";
               // Tillståndet är det som gör i dag och imorgon typografiskt högre —
               // utan det såg "idag" ut precis som "om 20 dagar".
-              span.dataset.state =
-              days === 0
-                ? "today"
-                : days === 1
-                  ? "tomorrow"
-                  : days <= 3
-                    ? "near"
-                    : days <= 7
-                      ? "week"
-                      : "later";
+              span.dataset.state = proximity(days);
               span.textContent = rel;
               head.append(span);
             }
@@ -590,19 +582,7 @@ ${table(strings.fi)}
     function renderDates(words) {
       for (const el of document.querySelectorAll(".rel[data-date]")) {
         const days = daysFrom(el.dataset.date);
-        // Samma trappa som renderarens proximity().
-        const state =
-          days < 0
-            ? "past"
-            : days === 0
-              ? "today"
-              : days === 1
-                ? "tomorrow"
-                : days <= 3
-                  ? "near"
-                  : days <= 7
-                    ? "week"
-                    : "later";
+        const state = proximity(days);
         const row = el.closest("li");
         if (row && !row.classList.contains("dayhead")) row.dataset.prox = state;
         el.textContent =

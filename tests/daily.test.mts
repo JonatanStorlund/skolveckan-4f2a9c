@@ -261,9 +261,10 @@ await check("läxor ur kursdagboken blir poster", async () => {
     ],
   });
   const state = await run({ ...deps, ...(await tempPaths()) });
-  assert.equal(calls.extract, 1, `förväntade 1 modellanrop, fick ${calls.extract}`);
-  assert.equal(state.children[0]!.items.length, 1);
-  assert.equal(state.seenHomework?.length, 2, "den sållade posten ska också märkas som sedd");
+  // "ingen läxa denna gång!" är inte ett rent nekande, så den går till modellen:
+  // en post som nekar läxa i ett ämne och ger en i ett annat får inte kastas.
+  assert.equal(calls.extract, 2, `förväntade 2 modellanrop, fick ${calls.extract}`);
+  assert.equal(state.seenHomework?.length, 2);
 });
 
 await check("läxor läses inte om nästa körning", async () => {
@@ -325,17 +326,22 @@ await check("två läxor med samma lydelse på olika dagar blir två", async () 
   assert.equal(state.children[0]!.items.length, 2, "en av två identiskt formulerade läxor tappades");
 });
 
-await check("finskt \"Ei läksyä\" sållas utan modellanrop", async () => {
+await check("rena nekanden sållas gratis, blandade poster går till modellen", async () => {
   const { deps, calls } = stub({
     messages: [],
     homework: [
+      // Rena nekanden på båda språken: gratis att hoppa över.
       { course: "MOFIA1.1", date: "2026-08-20", text: "Ei läksyä!" },
-      { course: "HI HI71", date: "2026-08-20", text: "Tema: Inledning. Läxa: Ingen läxa." },
+      { course: "BI BI71", date: "2026-08-20", text: "Läxfritt" },
+      { course: "SV SV71", date: "2026-08-20", text: "Ingen läxa idag" },
+      // Nekar i ett ämne, ger i ett annat. Substrängmatchning kastade hela
+      // posten — samma fel som trimDoc gjorde.
+      { course: "MA MA71", date: "2026-08-20", text: "Ingen läxa i matematik, men läs kapitel 3 till fredag." },
+      { course: "FI FI71", date: "2026-08-20", text: "Ei läksyä matematiikassa, mutta lue luku 3 perjantaiksi." },
     ],
   });
-  const state = await run({ ...deps, ...(await tempPaths()) });
-  assert.equal(calls.extract, 0, `${calls.extract} modellanrop för poster utan läxa`);
-  assert.equal(state.children[0]!.items.length, 0);
+  await run({ ...deps, ...(await tempPaths()) });
+  assert.equal(calls.extract, 2, `förväntade 2 modellanrop, fick ${calls.extract}`);
 });
 
 await check("ett misslyckat trådsvar tappas inte", async () => {
