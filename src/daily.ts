@@ -18,6 +18,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, "..");
 const statePath = path.join(root, "data", "oversikt.json");
 const photoDir = path.join(root, "site", "photos");
+const householdPath = path.join(root, "config", "household.json");
 
 /** Hur långt bak vi bryr oss. Äldre meddelanden extraheras aldrig. */
 const LOOKBACK_DAYS = 30;
@@ -100,6 +101,21 @@ function stillRelevant(item: Item, today: string): boolean {
 const unclearStillRelevant = (u: Unclear, today: string): boolean =>
   daysBetween(u.addedOn, today) <= UNDATED_TTL_DAYS;
 
+/**
+ * Fakta om hemmet som meddelandena inte känner till — t.ex. att ett barn inte
+ * går på eftis, så att eftis-info aldrig hamnar på det barnets lista.
+ */
+async function loadHousehold(): Promise<Record<string, string[]>> {
+  try {
+    const raw = JSON.parse(await readFile(householdPath, "utf8")) as {
+      children?: Record<string, string[]>;
+    };
+    return raw.children ?? {};
+  } catch {
+    return {};
+  }
+}
+
 async function loadState(): Promise<State | null> {
   try {
     return JSON.parse(await readFile(statePath, "utf8")) as State;
@@ -149,6 +165,7 @@ async function main(): Promise<void> {
   const now = new Date();
   const today = isoToday(now);
   const previous = await loadState();
+  const household = await loadHousehold();
   const seen = new Set(previous?.seen ?? []);
 
   const wilma = new Wilma(baseUrl, username, password);
@@ -216,8 +233,19 @@ async function main(): Promise<void> {
 
     const attached = await followDocs(body.links);
     if (attached) console.log(`  [${id}] följde ${body.links.length} länk(ar) till dokument`);
-    const result = await extract(body.text + attached, now);
-    const target = (owners.get(id) ?? []).length > 1 ? "shared" : prefix;
+
+    const recipients = owners.get(id) ?? [];
+    const target = recipients.length > 1 ? "shared" : prefix;
+    // Ett meddelande till flera barn får allas fakta; då kan modellen stryka
+    // det som inte gäller något av dem.
+    const facts = children
+      .filter((child) => recipients.includes(child.prefix))
+      .flatMap((child) => {
+        const slug = slugOf(child);
+        return (household[slug] ?? []).map((fact) => `${child.name.split(/\s+/)[0]}: ${fact}`);
+      });
+
+    const result = await extract(body.text + attached, now, facts);
 
     push(
       freshItems,

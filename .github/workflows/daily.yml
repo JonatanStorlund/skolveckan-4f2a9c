@@ -1,0 +1,84 @@
+name: Skolveckan
+
+on:
+  schedule:
+    # 03:30 UTC = 06:30 finsk sommartid, 05:30 vintertid. Före skoldagen.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+# Bara en körning i taget: två samtidiga skulle extrahera samma meddelanden.
+concurrency:
+  group: skolveckan
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Tillståndet bär "seen" mellan körningar, så redan extraherade
+      # meddelanden aldrig körs igenom modellen igen. Nyckeln byts varje
+      # körning och restore-keys plockar den senaste — så cachen kan skrivas.
+      - name: Återställ tidigare tillstånd
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: skolveckan-state-${{ github.run_id }}
+          restore-keys: skolveckan-state-
+
+      - name: Hämta ur Wilma och extrahera nytt
+        env:
+          WILMA_BASE_URL: https://jakobstad.inschool.fi
+          WILMA_USERNAME: storlundjonatan@gmail.com
+          WILMA_PASSWORD: ${{ secrets.WILMA_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx src/daily.ts
+
+      - name: Rendera och bygg
+        run: |
+          node site/render.mjs
+          node site/build.mjs
+
+      # Hellre gårdagens sida än en tom. Faller något här publiceras inget.
+      - name: Kontrollera resultatet
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const data = JSON.parse(readFileSync("data/oversikt.json", "utf8"));
+            const fail = (why) => { console.error("Ogiltigt resultat: " + why); process.exit(1); };
+            if (!data.children?.length) fail("inga barn");
+            const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Helsinki" }).format(new Date());
+            if (data.stamp !== today) fail(`stamp ${data.stamp} är inte idag (${today})`);
+            for (const child of data.children)
+              for (const item of [...child.items, ...data.shared])
+                if (!item.sv?.text || !item.fi?.text) fail(`post utan båda språken: ${JSON.stringify(item).slice(0, 120)}`);
+            const html = readFileSync("dist/index.html", "utf8");
+            if (html.length < 5000) fail("dist/index.html är misstänkt liten");
+            console.log(`OK — ${data.children.length} barn, stamp ${data.stamp}, ${html.length} tecken`);
+          '
+
+      - name: Spara tillståndet
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: skolveckan-state-${{ github.run_id }}
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4

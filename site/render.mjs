@@ -40,8 +40,7 @@ const esc = (s) =>
   );
 
 /** JS-strängliteral, säker att bädda in i <script>. */
-const js = (s) =>
-  JSON.stringify(String(s ?? "")).replace(/</g, "\\u003c").replace(/ | /g, "");
+const js = (s) => JSON.stringify(String(s ?? "")).replace(/</g, "\\u003c");
 
 // --- Strängtabellen byggs upp medan markupen skrivs -----------------------
 
@@ -206,6 +205,16 @@ function sharedMarkup(shared) {
   ].join("\n");
 }
 
+/**
+ * Strängtabellen skrivs med onoterade nycklar och "      }," som avslutning,
+ * eftersom site/build.mjs letar efter just den formen när den kontrollerar att
+ * svenska och finska har samma nycklar.
+ */
+const table = (entries) =>
+  Object.entries(entries)
+    .map(([k, v]) => `        ${k}: ${js(v)},`)
+    .join("\n");
+
 // --- Sidan ---------------------------------------------------------------
 
 const photoDir = path.join(here, "photos");
@@ -295,8 +304,12 @@ ${sharedMarkup(data.shared)}
   (function () {
     const STAMP = ${js(data.stamp)};
     const STRINGS = {
-      sv: ${JSON.stringify(strings.sv, null, 8).replace(/</g, "\\u003c")},
-      fi: ${JSON.stringify(strings.fi, null, 8).replace(/</g, "\\u003c")},
+      sv: {
+${table(strings.sv)}
+      },
+      fi: {
+${table(strings.fi)}
+      },
     };
     const WORDS = {
       sv: {

@@ -52,7 +52,11 @@ function getClient(): Anthropic {
 
 export class MissingKeyError extends Error {}
 
-export async function extract(message: string, now = new Date()): Promise<Tldr> {
+export async function extract(
+  message: string,
+  now = new Date(),
+  household: string[] = [],
+): Promise<Tldr> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new MissingKeyError(
       "ANTHROPIC_API_KEY saknas. Lägg den i .env eller exportera den innan du startar servern.",
@@ -71,7 +75,13 @@ export async function extract(message: string, now = new Date()): Promise<Tldr> 
     messages: [
       {
         role: "user",
-        content: `${referenceBlock(now)}
+        content: `${referenceBlock(now)}${
+          household.length
+            ? `\n\nHOUSEHOLD FACTS (treat as true; drop lines these rule out):\n${household
+                .map((fact) => `- ${fact}`)
+                .join("\n")}`
+            : ""
+        }
 
 Wilma-meddelande:
 <meddelande>

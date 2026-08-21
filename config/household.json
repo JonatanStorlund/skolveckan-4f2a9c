@@ -1,0 +1,9 @@
+{
+  "_comment": "Fakta om hemmet som inga Wilma-meddelanden känner till. Skickas med i extraheringen så att modellen kan utelämna rader som inte gäller. En rad per fakta, på svenska, kort och entydig.",
+  "children": {
+    "nellie": [
+      "Är INTE inskriven i eftis eller morgis. Allt som bara gäller eftis- eller morgisbarn ska utelämnas helt."
+    ],
+    "colin": []
+  }
+}

@@ -36,7 +36,10 @@ const keysOf = (lang) => {
   const start = source.indexOf(`      ${lang}: {`);
   const end = source.indexOf("\n      },", start);
   if (start === -1 || end === -1) throw new Error(`Hittade inte STRINGS.${lang}.`);
-  return new Set([...source.slice(start, end).matchAll(/^\s{8}(\w+):/gm)].map((m) => m[1]));
+  // Nycklarna kan vara citerade (genererad tabell) eller inte (handskriven).
+  return new Set(
+    [...source.slice(start, end).matchAll(/^ {8}"?(\w+)"?\s*:/gm)].map((m) => m[1]),
+  );
 };
 const sv = keysOf("sv");
 const fi = keysOf("fi");

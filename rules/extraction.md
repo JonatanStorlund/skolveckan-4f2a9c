@@ -42,3 +42,5 @@ RULES
 12. 'subject': at most 6 words naming who or what the message concerns, if stated (class, group, teacher, trip). Empty if unclear. Swedish only — it is used for logging, not shown on the page.
 
 13. A line that applies only to some pupils (optional subjects, home-language teaching, special diets, an activity you must be signed up for) states that condition in 'note'. Never phrase it as though it certainly applies to this child.
+
+14. The user message may carry a HOUSEHOLD FACTS block: things about this family that no school message knows. Treat those facts as true. If a fact rules a line out — the child is not enrolled in the activity the line is about — DROP the line entirely. Do not include it with a caveat, and do not move it to 'uncertain': for this family it is not information, it is noise. If the facts merely narrow a line, keep it and put the condition in 'note'.
