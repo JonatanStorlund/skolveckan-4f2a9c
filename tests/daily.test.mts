@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { run, type Deps } from "../src/daily.js";
-import type { ExtractResult } from "../src/extract.js";
+import { SourceError, TransportError, type ExtractResult } from "../src/extract.js";
 
 const results: string[] = [];
 let failed = 0;
@@ -31,7 +31,9 @@ interface StubOptions {
   messages?: { id: number; subject: string; timestamp: string }[];
   notices?: { id: number; title: string; date: string }[];
   readThrows?: boolean;
+  homework?: { course: string; date: string; text: string }[];
   extractThrows?: boolean;
+  transportThrows?: boolean;
   items?: number;
 }
 
@@ -45,7 +47,7 @@ function stub(options: StubOptions = {}) {
     now: NOW,
     wilma: {
       children: async () => [CHILD],
-      messages: async () => messages.map((m) => ({ ...m, sender: "Läraren", unread: true })),
+      messages: async () => messages.map((m) => ({ ...m, sender: "Läraren", unread: true, replies: 0 })),
       exams: async () => [
         { date: "2026-10-07", subject: "Matematik", group: "MA", teachers: ["MSt"] },
       ],
@@ -59,11 +61,13 @@ function stub(options: StubOptions = {}) {
           sender: "Läraren",
           timestamp: "2026-08-20 14:00",
           unread: true,
+          replies: 0,
           text: "Ta med gymnastikkläder på tisdag.",
           links: [],
         };
       },
       notices: async () => options.notices ?? [],
+      homework: async () => options.homework ?? [],
       readNotice: async () => {
         calls.readNotice += 1;
         return { title: "Anslag", text: "Simhallen stängd på torsdag.", links: [] };
@@ -71,7 +75,8 @@ function stub(options: StubOptions = {}) {
     },
     extract: async (): Promise<ExtractResult> => {
       calls.extract += 1;
-      if (options.extractThrows) throw new Error("modellen föll");
+      if (options.transportThrows) throw new TransportError("API:et svarade inte");
+      if (options.extractThrows) throw new SourceError("för långt för max_tokens");
       return {
         language_in: "sv",
         subject: "",
@@ -152,11 +157,42 @@ await check("en trasig tidsstämpel dödar inte körningen", async () => {
   assert.deepEqual(state.seen, [101]);
 });
 
-await check("systemfel publicerar inget och överger inget", async () => {
+// Ett enda oläsbart meddelande fick tidigare frysa sidan för alltid: "allt föll"
+// och "det här meddelandet går inte att läsa" gick inte att skilja på, och
+// avbrottet skedde före skrivningen så budgeten kunde aldrig räknas upp.
+await check("ett oläsbart meddelande fryser inte sidan", async () => {
   const paths = await tempPaths();
   const { deps } = stub({ extractThrows: true });
-  await assert.rejects(() => run({ ...deps, ...paths }), /Samtliga meddelanden föll/);
-  // Inget tillstånd får ha skrivits, och budgeten får inte ha räknats upp.
+  const state = await run({ ...deps, ...paths });
+  assert.equal(state.attempts?.m101, 1, "budgeten räknades inte upp");
+  assert.equal(state.seen.includes(101), false, "ett fallet meddelande markerades som läst");
+});
+
+await check("oläsbart meddelande ges upp efter tre dygn och sidan går vidare", async () => {
+  const paths = await tempPaths();
+  for (let day = 1; day <= 3; day += 1) {
+    const { deps } = stub({ extractThrows: true });
+    const state = await run({ ...deps, ...paths });
+    assert.equal(state.attempts?.m101, day, `dag ${day}: budgeten står på ${state.attempts?.m101}`);
+  }
+  // Fjärde dygnet ska det inte ens försökas — och sidan publiceras som vanligt.
+  const fourth = stub({ extractThrows: true });
+  const state = await run({ ...fourth.deps, ...paths });
+  assert.equal(fourth.calls.extract, 0, "en uppgiven källa köptes igen");
+  assert.deepEqual(state.abandoned, ["m101"], "uppgiven källa syns inte i tillståndet");
+});
+
+await check("transportfel hela vägen publicerar inget", async () => {
+  const paths = await tempPaths();
+  const { deps } = stub({
+    messages: [
+      { id: 101, subject: "Ett", timestamp: "2026-08-20 14:00" },
+      { id: 102, subject: "Två", timestamp: "2026-08-20 15:00" },
+    ],
+    transportThrows: true,
+  });
+  await assert.rejects(() => run({ ...deps, ...paths }), /transportfel/);
+  // Inget tillstånd skrivet, och ingen budget bränd — i morgon kan nätet vara uppe.
   await assert.rejects(() => readFile(paths.statePath, "utf8"));
 });
 
@@ -212,6 +248,49 @@ await check("prov hämtas utan modellanrop", async () => {
   const state = await run({ ...deps, ...(await tempPaths()) });
   assert.equal(calls.extract, 0, "prov kostade modellanrop");
   assert.equal(state.children[0]!.exams.length, 1);
+});
+
+await check("läxor ur kursdagboken blir poster", async () => {
+  const { deps, calls } = stub({
+    messages: [],
+    homework: [
+      { course: "MA MA71", date: "2026-08-20", text: "s.12 Kortläxa u.16-19" },
+      // "Ingen läxa" ska sållas i kod, gratis, utan modellanrop.
+      { course: "BI BI71", date: "2026-08-20", text: "ingen läxa denna gång!" },
+    ],
+  });
+  const state = await run({ ...deps, ...(await tempPaths()) });
+  assert.equal(calls.extract, 1, `förväntade 1 modellanrop, fick ${calls.extract}`);
+  assert.equal(state.children[0]!.items.length, 1);
+  assert.equal(state.seenHomework?.length, 2, "den sållade posten ska också märkas som sedd");
+});
+
+await check("läxor läses inte om nästa körning", async () => {
+  const paths = await tempPaths();
+  const homework = [{ course: "MA MA71", date: "2026-08-20", text: "s.12 Kortläxa" }];
+  await run({ ...stub({ messages: [], homework }).deps, ...paths });
+  const second = stub({ messages: [], homework });
+  await run({ ...second.deps, ...paths });
+  assert.equal(second.calls.extract, 0, "läxan köptes en andra gång");
+});
+
+await check("ett nytt svar i en tråd gör den läsvärd igen", async () => {
+  const paths = await tempPaths();
+  const msg = { id: 101, subject: "Ansökan om ledighet", timestamp: "2026-08-20 14:00" };
+  const first = stub({ messages: [msg] });
+  await run({ ...first.deps, ...paths });
+
+  // Samma meddelande, men läraren har svarat: replies 0 -> 1.
+  const answered = stub({ messages: [msg] });
+  const deps = {
+    ...answered.deps,
+    wilma: {
+      ...(answered.deps as { wilma: Record<string, unknown> }).wilma,
+      messages: async () => [{ ...msg, sender: "Läraren", unread: false, replies: 1 }],
+    },
+  } as unknown as Deps;
+  await run({ ...deps, ...paths });
+  assert.equal(answered.calls.extract, 1, "svaret i tråden lästes inte");
 });
 
 console.log(results.join("\n"));

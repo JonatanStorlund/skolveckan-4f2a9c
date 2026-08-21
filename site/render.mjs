@@ -27,17 +27,20 @@ const css = readFileSync(path.join(here, "style.css"), "utf8").trimEnd();
  * `palette` grupperar slagen i sex färger; fler hade blivit fruktsallad.
  */
 const TAGS = {
-  ta_med: { sv: "Ta med", fi: "Ota mukaan", palette: "bring" },
+  ta_med: { sv: "Ta med", fi: "Mukaan", palette: "bring" },
   laxa: { sv: "Läxa", fi: "Läksy", palette: "home" },
   deadline: { sv: "Deadline", fi: "Määräaika", palette: "do" },
   bokning: { sv: "Boka tid", fi: "Varaa aika", palette: "do" },
   betalning: { sv: "Betalning", fi: "Maksu", palette: "bring" },
-  andrad_tid: { sv: "Ändrad tid", fi: "Muuttunut aika", palette: "time" },
-  ingen_skola: { sv: "Ingen skola", fi: "Ei koulua", palette: "time" },
-  evenemang: { sv: "Evenemang", fi: "Tapahtuma", palette: "event" },
+  andrad_tid: { sv: "Tid", fi: "Aika", palette: "time" },
+  ingen_skola: { sv: "Ledigt", fi: "Vapaa", palette: "time" },
+  evenemang: { sv: "Händelse", fi: "Tapahtuma", palette: "event" },
   prov: { sv: "Prov", fi: "Koe", palette: "event" },
   info: { sv: "Info", fi: "Tieto", palette: "info" },
 };
+
+/** Grupper med ett enda slag: rubriken säger vad raderna är. */
+const SINGLE_KIND_GROUPS = new Set(["exams", "booking"]);
 
 function tagMarkup(kind) {
   const tag = TAGS[kind] ?? TAGS.info;
@@ -128,8 +131,9 @@ function itemMarkup(item) {
     bits.push(`<span class="at" data-t="${tk}">${esc(item.time)}</span>`);
   }
   // Etiketten sist i raden, så den hamnar längst till höger även när datumet
-  // och den relativa texten radbryter.
-  bits.push(tagMarkup(item.kind));
+  // och den relativa texten radbryter. Utelämnas i engrupper: där upprepar den
+  // bara rubriken och beskattar textkolumnen via subgrid.
+  if (!SINGLE_KIND_GROUPS.has(bucketOf(item))) bits.push(tagMarkup(item.kind));
   const note = text("p", "note", item.sv.note, item.fi.note, "n");
 
   return (
@@ -146,7 +150,7 @@ function examItem(exam) {
     `<li data-kind="prov" data-date="${esc(exam.date)}">` +
     `<span class="what" data-t="${k}">${esc(exam.subject)}</span>` +
     `<span class="meta"><span class="when" data-t="${wk}">${esc(l.sv)}</span>` +
-    `<span class="rel" data-date="${esc(exam.date)}"></span>${tagMarkup("prov")}</span></li>`
+    `<span class="rel" data-date="${esc(exam.date)}"></span></span></li>`
   );
 }
 
@@ -259,15 +263,17 @@ function sharedMarkup(shared) {
   const rows = live.map((item) => {
     const k = key(item.sv.text, item.fi.text, "s");
     const bits = [`<span class="what" data-t="${k}">${esc(item.sv.text)}</span>`];
+    // Ett .meta-spann, inte två: två fick etiketten att radbryta till en egen
+    // rad med ett hål till vänster, och gjorde bandets rad dubbelt så hög.
+    const metaBits = [];
     if (item.date) {
       const l = dateLabels(item.date);
       const wk = key(item.sv.dateLabel || l.sv, item.fi.dateLabel || l.fi, "w");
-      bits.push(
-        `<span class="meta"><span class="when" data-t="${wk}">${esc(item.sv.dateLabel || l.sv)}</span>` +
-          `<span class="rel" data-date="${esc(item.date)}"></span></span>`,
-      );
+      metaBits.push(`<span class="when" data-t="${wk}">${esc(item.sv.dateLabel || l.sv)}</span>`);
+      metaBits.push(`<span class="rel" data-date="${esc(item.date)}"></span>`);
     }
-    bits.push(`<span class="meta">${tagMarkup(item.kind ?? "info")}</span>`);
+    metaBits.push(tagMarkup(item.kind ?? "info"));
+    bits.push(`<span class="meta">${metaBits.join("")}</span>`);
     const note = text("p", "note", item.sv.note, item.fi.note, "n");
     return (
       `<li data-kind="${esc(item.kind ?? "info")}"${item.date ? ` data-date="${esc(item.date)}"` : ""}>` +
@@ -309,10 +315,7 @@ const faces = data.children
   .join("\n");
 
 const options = data.children
-  .map(
-    (child) =>
-      `      <option value="${esc(child.slug)}" data-name="${esc(child.name)}">${esc(child.name)}</option>`,
-  )
+  .map((child) => `      <option value="${esc(child.slug)}">${esc(child.name)}</option>`)
   .join("\n");
 
 const panels = data.children.map((child, i) => childMarkup(child, i === 0)).join("\n\n");
@@ -350,22 +353,14 @@ ${css}
   <div class="picker" data-kid="${esc(data.children[0]?.slug ?? "")}">
 ${faces}
     <label class="sr-only" for="kid" data-t="${pickerKey}">Barn</label>
-    <select id="kid">
+    <select id="kid" disabled>
 ${options}
     </select>
   </div>
 
   <noscript>
-    <style>
-      #kid {
-        pointer-events: none;
-        opacity: 0.6;
-      }
-    </style>
     <p class="empty">Utan JavaScript visas bara det första barnet.</p>
   </noscript>
-
-  <button type="button" class="otherkid" id="otherkid" hidden></button>
 
   <div class="panels">
 ${panels}
@@ -615,6 +610,9 @@ ${table(strings.fi)}
     // --- Barnväljare ---
     const picker = document.querySelector(".picker");
     const select = document.getElementById("kid");
+    // Avstängd i markupen, påslagen här: CSS kan inte stänga av en kontroll för
+    // tangentbordet, så utan JS ska den vara genuint disabled.
+    select.disabled = false;
     const faceList = [...document.querySelectorAll(".face")];
     const panels = [...document.querySelectorAll("section.kid")];
     const kids = panels.map((panel) => panel.dataset.kid);
@@ -625,48 +623,9 @@ ${table(strings.fi)}
       picker.dataset.kid = kid;
       select.value = kid;
       store.set(KID_KEY, kid);
-      updateCounts(kid);
-    }
-
-    /** Vad ett barn har på gång: veckan, bokningar, framåt och prov. Inte info. */
-    function liveCount(panel) {
-      return ["week", "booking", "later", "exams"].reduce((sum, name) => {
-        const g = panel.querySelector(\`.group[data-group="\${name}"]\`);
-        if (!g) return sum;
-        return sum + [...g.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden).length;
-      }, 0);
-    }
-
-    const other = document.getElementById("otherkid");
-
-    function updateCounts(current) {
-      const counts = new Map();
-      for (const panel of panels) counts.set(panel.dataset.kid, liveCount(panel));
-
-      for (const option of select.options) {
-        const n = counts.get(option.value) ?? 0;
-        const name = option.dataset.name || option.value;
-        option.textContent = n > 0 ? \`\${name} · \${n}\` : name;
-      }
-
-      // En väljare visar ett barn i taget. Det andra barnets måndagsläxa får
-      // inte vara osynlig bara därför.
-      if (!other) return;
-      const next = panels.map((p) => p.dataset.kid).find((kid) => kid !== current);
-      const n = next ? (counts.get(next) ?? 0) : 0;
-      if (!next || n === 0) {
-        other.hidden = true;
-        return;
-      }
-      const label = select.querySelector(\`option[value="\${next}"]\`)?.dataset.name || next;
-      other.hidden = false;
-      other.dataset.kid = next;
-      other.textContent = \`\${label} · \${n}\`;
-      other.setAttribute("aria-label", \`\${label}: \${n}\`);
     }
 
     select.addEventListener("change", () => setKid(select.value));
-    if (other) other.addEventListener("click", () => setKid(other.dataset.kid));
 
     const savedKid = store.get(KID_KEY, null);
     setKid(kids.includes(savedKid) ? savedKid : kids[0]);

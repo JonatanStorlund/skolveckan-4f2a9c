@@ -65,6 +65,19 @@ function getClient(): Anthropic {
 
 export class MissingKeyError extends Error {}
 
+/**
+ * Felet hör till källan: det här meddelandet kommer aldrig att gå igenom, hur
+ * många gånger vi än försöker. Värt att räkna upp försöksbudgeten för.
+ */
+export class SourceError extends Error {}
+
+/**
+ * Felet hör till transporten: nätet, rate limits, en femma från API:et. Samma
+ * meddelande kan mycket väl lyckas i morgon, så budgeten ska INTE räknas upp —
+ * och en körning där allt föll av det här skälet är systemisk.
+ */
+export class TransportError extends Error {}
+
 export interface ExtractOptions {
   /** När meddelandet skickades — referens för alla relativa uttryck. */
   sentAt: Date;
@@ -162,6 +175,28 @@ function violations(result: Tldr, source: string): Violation[] {
   return problems;
 }
 
+/**
+ * Skiljer transportfel från källfel redan här, så att den som anropar oss kan
+ * avgöra om det är värt att försöka igen i morgon.
+ */
+async function request(
+  params: Parameters<Anthropic["messages"]["parse"]>[0],
+): Promise<Awaited<ReturnType<Anthropic["messages"]["parse"]>>> {
+  try {
+    return await getClient().messages.parse(params);
+  } catch (error) {
+    if (
+      error instanceof Anthropic.RateLimitError ||
+      error instanceof Anthropic.APIConnectionError ||
+      (error instanceof Anthropic.APIError && (error.status ?? 0) >= 500)
+    ) {
+      throw new TransportError(`API:et svarade inte: ${error.message}`);
+    }
+    // 400/404 och liknande är fel i vad vi skickade — det ändras inte i morgon.
+    throw new SourceError(error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function callModel(
   model: string,
   message: string,
@@ -169,7 +204,7 @@ async function callModel(
 ): Promise<{ result: Tldr; usage: Usage }> {
   const { sentAt, now = new Date(), household = [] } = options;
 
-  const response = await getClient().messages.parse({
+  const response = await request({
     model,
     max_tokens: 8000,
     output_config: {
@@ -203,13 +238,13 @@ ${message}
   });
 
   if (response.stop_reason === "refusal") {
-    throw new Error("Modellen avbröt förfrågan (refusal). Meddelandet kunde inte behandlas.");
+    throw new SourceError("Modellen avbröt förfrågan (refusal). Meddelandet kunde inte behandlas.");
   }
   if (response.stop_reason === "max_tokens") {
-    throw new Error(`Svaret klipptes av max_tokens (${model}) — meddelandet är för långt.`);
+    throw new SourceError(`Svaret klipptes av max_tokens (${model}) — meddelandet är för långt.`);
   }
   const parsed = response.parsed_output;
-  if (!parsed) throw new Error("Kunde inte tolka svaret från modellen.");
+  if (!parsed) throw new SourceError("Kunde inte tolka svaret från modellen.");
 
   const price = PRICES[model] ?? { in: 0, out: 0 };
   const inputTokens = response.usage.input_tokens ?? 0;

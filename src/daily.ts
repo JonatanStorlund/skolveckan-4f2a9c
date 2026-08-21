@@ -11,8 +11,14 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { Wilma, type Child, type Exam } from "./wilma.js";
-import { extract, summariseUsage, WEEKEND_WORDS, type Usage } from "./extract.js";
+import { Wilma, WilmaError, type Child, type Exam, type HomeworkEntry } from "./wilma.js";
+import {
+  extract,
+  summariseUsage,
+  TransportError,
+  WEEKEND_WORDS,
+  type Usage,
+} from "./extract.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, "..");
@@ -30,6 +36,8 @@ const UNDATED_TTL_DAYS = 21;
 const INBOX_LIMIT = 25;
 /** Tak på anslag per körning. Anslagstavlan är mest permanent referensmaterial. */
 const MAX_NOTICES_PER_RUN = 3;
+/** Tak på läxposter per körning. Första körningen har en hel veckas dagbok. */
+const MAX_HOMEWORK_PER_RUN = 8;
 /** Tak på hämtad dokumenttext, så ett långt dokument inte sväller prompten. */
 const DOC_CHARS = 4000;
 
@@ -72,12 +80,18 @@ export interface ChildBlock {
 
 export interface State {
   stamp: string;
+  /** Källor som getts upp. Renderas på sidan — förlorad post är förälderns sak. */
+  abandoned?: string[];
   /** Misslyckade försök per källa ("m123" meddelande, "n45" anslag). */
   attempts?: Record<string, number>;
   messageCount: number;
   seen: number[];
   /** Lästa anslag. Egen lista: anslags-id kan kollidera med meddelande-id. */
   seenNotices?: number[];
+  /** Lästa läxposter, nycklade kurs|datum|text. */
+  seenHomework?: string[];
+  /** Antal svar per meddelande vid senaste läsning. Ändras det har någon svarat. */
+  replies?: Record<string, number>;
   shared: Item[];
   sharedUncertain: Unclear[];
   children: ChildBlock[];
@@ -190,7 +204,10 @@ function dayOf(timestamp: string): string {
 
 /** Det körningen behöver utifrån. Injicerbart så att main() går att provköra. */
 export interface Deps {
-  wilma: Pick<Wilma, "children" | "messages" | "exams" | "photo" | "read" | "notices" | "readNotice">;
+  wilma: Pick<
+    Wilma,
+    "children" | "messages" | "exams" | "photo" | "read" | "notices" | "readNotice" | "homework"
+  >;
   extract: typeof extract;
   now?: Date;
   statePath?: string;
@@ -269,7 +286,14 @@ export async function run(deps: Deps): Promise<State> {
         return false;
       }
     })
-    .filter(({ id }) => !seen.has(id) && !exhausted(`m${id}`))
+    .filter(({ id, message }) => {
+      if (exhausted(`m${id}`)) return false;
+      // Ett svar i en tråd vi redan läst är nytt innehåll: läraren kan ha
+      // föreslagit en mötestid eller besvarat en ledighetsansökan.
+      const before = previous?.replies?.[String(id)] ?? 0;
+      if (seen.has(id)) return message.replies > before;
+      return true;
+    })
     .sort((a, b) => b.message.timestamp.localeCompare(a.message.timestamp));
 
   const toExtract = candidates.slice(0, MAX_NEW_PER_RUN);
@@ -287,6 +311,7 @@ export async function run(deps: Deps): Promise<State> {
   // räknare gjorde att sex anslagsfel kunde stoppa sex lyckade meddelanden.
   const msgFailures: string[] = [];
   const failedIds: string[] = [];
+  let transportFailures = 0;
   const noticeFailures: string[] = [];
   const freshItems = new Map<string, Item[]>();  // nyckel: prefix eller "shared"
   const freshUnclear = new Map<string, Unclear[]>();
@@ -349,11 +374,45 @@ export async function run(deps: Deps): Promise<State> {
       // Meddelandet läggs medvetet INTE i seen: nästa körning får försöka igen.
       // Men de som redan lyckats ska inte kastas bort med det.
       msgFailures.push(`[${id}] ${message.subject}: ${error instanceof Error ? error.message : error}`);
-      // Budgeten räknas upp först när vi vet att felet var källspecifikt — se
-      // nedan. Ett API-avbrott ska inte överge tre meddelanden för alltid.
-      failedIds.push(`m${id}`);
+      // Transportfel kan lyckas i morgon och ska inte kosta budget. Källfel —
+      // för långt, refusal, otolkbart svar — kommer aldrig att lyckas.
+      if (error instanceof TransportError || error instanceof WilmaError) transportFailures += 1;
+      else failedIds.push(`m${id}`);
       console.error(`  [${id}] FEL, hoppar över: ${error instanceof Error ? error.message : error}`);
     }
+  }
+
+  for (const [label, list] of [
+    ["meddelande", msgFailures],
+    ["anslag", noticeFailures],
+  ] as const) {
+    if (list.length) console.error(`\n${list.length} ${label} kunde inte läsas:\n  ${list.join("\n  ")}`);
+  }
+  // Systemiskt betyder transportfel hela vägen: nätet eller API:et är nere, och
+  // i morgon kan det gå. Ett enda otolkbart meddelande är INTE systemiskt — att
+  // räkna i stället för att klassificera lät ett sådant frysa sidan för evigt.
+  const systemic =
+    toExtract.length >= 2 &&
+    msgFailures.length === toExtract.length &&
+    transportFailures === msgFailures.length;
+
+  for (const key of failedIds) bumpAttempt(key);
+
+  if (systemic) {
+    throw new Error(
+      `Samtliga ${toExtract.length} meddelanden föll på transportfel — publicerar inget.`,
+    );
+  }
+
+  // Uppgivna källor ska synas i varje körning, inte bara den gång de gavs upp.
+  const abandoned = Object.entries(attempts)
+    .filter(([, n]) => n >= MAX_ATTEMPTS)
+    .map(([key]) => key);
+  if (abandoned.length) {
+    console.warn(
+      `\n${abandoned.length} källa/källor har getts upp efter ${MAX_ATTEMPTS} försök: ` +
+        `${abandoned.join(", ")}. Det syns på sidan.`,
+    );
   }
 
   // Anslagstavlan. Mest permanenta blanketter och instruktioner, så bara
@@ -433,32 +492,11 @@ export async function run(deps: Deps): Promise<State> {
         );
       } catch (error) {
         noticeFailures.push(`anslag [${notice.id}]: ${error instanceof Error ? error.message : error}`);
-        failedIds.push(`n${notice.id}`);
+        if (!(error instanceof TransportError || error instanceof WilmaError)) {
+          failedIds.push(`n${notice.id}`);
+        }
       }
     }
-  }
-
-  for (const [label, list] of [
-    ["meddelande", msgFailures],
-    ["anslag", noticeFailures],
-  ] as const) {
-    if (list.length) console.error(`\n${list.length} ${label} kunde inte läsas:\n  ${list.join("\n  ")}`);
-  }
-  // Föll varje enskilt meddelande är felet systematiskt, inte källspecifikt: då
-  // ska ingen budget räknas upp, gårdagens sida stå kvar och mejlet komma.
-  const systemic = toExtract.length > 0 && msgFailures.length === toExtract.length;
-  if (!systemic) for (const key of failedIds) bumpAttempt(key);
-  if (systemic) {
-    throw new Error("Samtliga meddelanden föll — publicerar inget.");
-  }
-
-  // Uppgivna källor ska synas i varje körning, inte bara den gång de gavs upp.
-  const abandoned = Object.entries(attempts).filter(([, n]) => n >= MAX_ATTEMPTS);
-  if (abandoned.length) {
-    console.warn(
-      `\n${abandoned.length} källa/källor har getts upp efter ${MAX_ATTEMPTS} försök: ` +
-        abandoned.map(([key]) => key).join(", "),
-    );
   }
 
   // Helgvakt: skolan har inte lektioner på lördag eller söndag, så ett datum
@@ -498,12 +536,87 @@ export async function run(deps: Deps): Promise<State> {
   const previousChild = (slug: string): ChildBlock | undefined =>
     previous?.children.find((c) => c.slug === slug);
 
+  // Läxor ur kursdagböckerna. Nellies lärare lägger dem i veckoplaneringen som
+  // redan följs; Colins står bara här.
+  const seenHomework = new Set(previous?.seenHomework ?? []);
+  const noHomework = /^(?=.{0,140}$)(?:.*\b(?:ingen läxa|inga läxor|läxfritt|ei läksyä|ei kotitehtäviä)\b)/i;
+  let homeworkBudget = MAX_HOMEWORK_PER_RUN;
+
+  for (const child of children) {
+    let entries: HomeworkEntry[] = [];
+    try {
+      entries = await wilma.homework(child.prefix);
+    } catch (error) {
+      console.warn(`  läxor för ${child.name}: ${error instanceof Error ? error.message : error}`);
+      continue;
+    }
+
+    const fresh = entries.filter((entry) => {
+      const id = `${entry.course}|${entry.date}|${entry.text}`;
+      if (seenHomework.has(id) || exhausted(`h${id}`)) return false;
+      const age = daysBetween(entry.date, today);
+      if (age < 0 || age > LOOKBACK_DAYS) return false;
+      // "Ei läksyä!" är ett svar, inte en uppgift — och gratis att sålla i kod.
+      if (noHomework.test(entry.text)) {
+        seenHomework.add(id);
+        return false;
+      }
+      return true;
+    });
+
+    for (const entry of fresh.slice(0, homeworkBudget)) {
+      homeworkBudget -= 1;
+      const id = `${entry.course}|${entry.date}|${entry.text}`;
+      try {
+        const sentAt = new Date(`${entry.date}T12:00:00+03:00`);
+        const facts = (household[slugOf(child)] ?? []).map(
+          (fact) => `${child.name.split(/\s+/)[0]}: ${fact}`,
+        );
+        const result = await extractOne(
+          `Kursdagbok, ${entry.course}, lektion ${entry.date}:\n\n${entry.text}`,
+          { sentAt, now, household: facts },
+        );
+        usage.push(...result.usage);
+        push(
+          freshItems,
+          child.prefix,
+          result.items.map((item) => ({
+            kind: item.kind === "info" ? "laxa" : item.kind,
+            // Kursdagbokens datum är lektionens; läxan hör till nästa lektion om
+            // modellen inte hittat något annat datum i texten.
+            date: item.date || entry.date,
+            time: item.time,
+            sv: { text: item.text, note: item.note, dateLabel: item.date_label },
+            fi: { text: item.text_fi, note: item.note_fi, dateLabel: item.date_label_fi },
+            quote: item.quote,
+            messageId: 0,
+            addedOn: today,
+          })),
+        );
+        seenHomework.add(id);
+        console.log(`  läxa ${entry.date} ${entry.course} → ${result.items.length} poster (${child.name})`);
+      } catch (error) {
+        noticeFailures.push(`läxa ${entry.course} ${entry.date}: ${error instanceof Error ? error.message : error}`);
+        if (!(error instanceof TransportError || error instanceof WilmaError)) failedIds.push(`h${id}`);
+      }
+    }
+  }
+
   const state: State = {
     stamp: today,
     messageCount: [...owners.keys()].length,
     seen: [...seen].sort((a, b) => a - b),
     seenNotices: [...seenNotices].sort((a, b) => a - b),
+    seenHomework: [...seenHomework].sort(),
+    replies: Object.fromEntries(
+      [...owners.keys()].map((id) => {
+        const prefix = owners.get(id)![0]!;
+        const message = (inboxes.get(prefix) ?? []).find((m) => m.id === id);
+        return [String(id), message?.replies ?? 0];
+      }),
+    ),
     attempts,
+    abandoned,
     shared: merge(previous?.shared ?? [], freshItems.get("shared") ?? []),
     sharedUncertain: mergeUnclear(previous?.sharedUncertain ?? [], freshUnclear.get("shared") ?? []),
     children: children.map((child) => {

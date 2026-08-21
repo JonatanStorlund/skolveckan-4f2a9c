@@ -25,6 +25,8 @@ export interface MessageSummary {
   /** "YYYY-MM-DD HH:MM" som Wilma ger det. */
   timestamp: string;
   unread: boolean;
+  /** Antal svar i tråden. Ändras det har någon svarat — då är tråden ny för oss. */
+  replies: number;
 }
 
 export interface MessageBody extends MessageSummary {
@@ -51,6 +53,14 @@ export interface Notice {
   title: string;
   /** ISO-datum, eller tom sträng när anslaget saknar dagsuppgift. */
   date: string;
+}
+
+export interface HomeworkEntry {
+  /** Kurskod som läraren skriver den, t.ex. "MA MA71". */
+  course: string;
+  /** ISO-datum för lektionen läxan hör till. */
+  date: string;
+  text: string;
 }
 
 export class WilmaError extends Error {}
@@ -247,6 +257,7 @@ export class Wilma {
         Sender: string;
         TimeStamp: string;
         Status?: number;
+        Replies?: number;
       }>;
     };
     return (data.Messages ?? []).slice(0, limit).map((m) => ({
@@ -255,7 +266,40 @@ export class Wilma {
       sender: m.Sender,
       timestamp: m.TimeStamp,
       unread: m.Status === 1,
+      replies: m.Replies ?? 0,
     }));
+  }
+
+  /**
+   * Läxor ur lärarnas kursdagböcker.
+   *
+   * Ligger i `$.Groups[].Homework[]` på /overview — strukturerat, med datum som
+   * fält. Det här är den enda platsen i Wilma där en del av läxorna finns: de
+   * står inte i något meddelande och inte i någon veckoplanering.
+   */
+  async homework(prefix: string): Promise<HomeworkEntry[]> {
+    const response = await this.authed(`${prefix}/overview`);
+    if (!response.ok) throw new WilmaError(`Översikten gav ${response.status}.`);
+    const data = (await response.json()) as {
+      Groups?: {
+        Caption?: string;
+        ShortCaption?: string;
+        Homework?: { Date?: string; Homework?: string }[];
+      }[];
+    };
+
+    const found = new Map<string, HomeworkEntry>();
+    for (const group of data.Groups ?? []) {
+      const course = (group.Caption || group.ShortCaption || "").trim();
+      for (const row of group.Homework ?? []) {
+        const date = (row.Date ?? "").trim();
+        const text = (row.Homework ?? "").replace(/\r/g, "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !text) continue;
+        // Samma läxa dyker upp en gång per lektion i veckan — nyckla bort dubbletter.
+        found.set(`${course}|${date}|${text}`, { course, date, text });
+      }
+    }
+    return [...found.values()].sort((a, b) => a.date.localeCompare(b.date));
   }
 
   /**
@@ -386,6 +430,9 @@ export class Wilma {
       sender: fieldFromTable(html, ["lähettäjä", "avsändare", "sender"]),
       timestamp: fieldFromTable(html, ["lähetetty", "skickat", "sent"]),
       unread: false,
+      // Antalet svar hör till listan, inte till brödtexten — den här vyn
+      // innehåller redan svaren inbakade i samma ckeditor-block.
+      replies: 0,
       text: extractBody(html),
       links: extractLinks(html),
     };

@@ -214,19 +214,30 @@ check("texten börjar längst till vänster, etiketten till höger", () => {
   assert.equal(w.document.querySelectorAll(".icon").length, 0, "ikonkolumnen finns kvar");
 });
 
-check("varje post har en färgkodad etikett med båda språken", () => {
+check("poster i blandade grupper har en färgkodad etikett", () => {
   const w = open("2026-08-21");
-  const items = [...w.document.querySelectorAll("li[data-kind]")];
-  assert.ok(items.length > 0);
-  for (const li of items) {
+  // Engrupper (prov, boka tid) utelämnar etiketten med flit: rubriken säger
+  // redan vad raderna är, och etiketten beskattade textkolumnen via subgrid.
+  const mixed = [...w.document.querySelectorAll('.group[data-group="week"] li[data-kind]')];
+  assert.ok(mixed.length > 0, "inga poster i veckofacket att kontrollera");
+  for (const li of mixed) {
     const tag = li.querySelector(".tag-kind");
     assert.ok(tag, `post utan etikett: ${li.textContent.trim().slice(0, 40)}`);
     assert.ok(tag.dataset.tag, "etiketten saknar färgnyckel");
     assert.ok(tag.textContent.trim().length > 0, "tom etikett");
   }
+  for (const group of ["exams", "booking"]) {
+    for (const li of w.document.querySelectorAll(`.group[data-group="${group}"] li[data-kind]`)) {
+      assert.equal(li.querySelector(".tag-kind"), null, `${group} upprepar sin rubrik som etikett`);
+    }
+  }
+  const items = mixed;
   // Etiketten är sista barnet i .meta, så den hamnar längst till höger.
   const meta = items[0].querySelector(".meta");
   assert.equal(meta.lastElementChild.className, "tag-kind", "etiketten ligger inte sist");
+  // Bandet ska ha ETT .meta-spann, inte två — två gav en radbruten etikett.
+  const band = w.document.querySelector(".shared li");
+  if (band) assert.equal(band.querySelectorAll(".meta").length, 1, "bandet har två .meta-spann");
 
   w.document.querySelector('.lang button[data-lang="fi"]').click();
   const fiTag = items[0].querySelector(".tag-kind").textContent;
