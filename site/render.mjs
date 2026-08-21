@@ -160,30 +160,61 @@ function group(name, labelSv, labelFi, rows, extra = "") {
   );
 }
 
+/** Dagsrubrik i samma form som webbläsaren bygger, för läsbarhet utan JS. */
+function dayHeadMarkup(iso) {
+  const l = dateLabels(iso);
+  const days = Math.round(
+    (Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${TODAY}T00:00:00Z`)) / 86400000,
+  );
+  const state = days === 0 ? "today" : days === 1 ? "tomorrow" : "soon";
+  const relSv = days === 0 ? "idag" : days === 1 ? "imorgon" : `om ${days} dagar`;
+  const relFi = days === 0 ? "tänään" : days === 1 ? "huomenna" : `${days} päivän päästä`;
+  const dk = key(l.sv, l.fi, "d");
+  const rk = key(relSv, relFi, "d");
+  return (
+    `<li class="dayhead" data-t="${dk}">${esc(l.sv)}` +
+    `<span class="dayrel" data-state="${state}" data-t="${rk}">${esc(relSv)}</span></li>`
+  );
+}
+
 function childMarkup(child, first) {
   const buckets = { week: [], booking: [], later: [], exams: [], info: [] };
+  // Veckan sorteras redan här: utan JS fick man rådataordning (25.8 före 24.8).
+  const weekItems = child.items
+    .filter((item) => bucketOf(item) === "week")
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  let lastDate = null;
+  for (const item of weekItems) {
+    if (item.date !== lastDate) {
+      lastDate = item.date;
+      buckets.week.push(dayHeadMarkup(item.date));
+    }
+    buckets.week.push(itemMarkup(item));
+  }
+
   child.items.forEach((item) => {
     const bucket = bucketOf(item);
-    if (bucket === "past") return;
+    if (bucket === "past" || bucket === "week") return;
     buckets[bucket].push(itemMarkup(item));
   });
   child.exams.forEach((exam) => buckets.exams.push(examItem(exam)));
 
+  // hidden som standard: JS visar den som stämmer. Tvärtom gav två motsägande
+  // rader under en fylld lista när skriptet inte kördes.
+  const emptyKey = key(
+    "Inget på gång den närmaste veckan",
+    "Ei mitään lähimmän viikon aikana",
+    "g",
+  );
+  const hintKey = key(
+    "Inget eget den här veckan — se Gäller båda längst ner",
+    "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
+    "g",
+  );
   const emptyWeek =
-    `        ${text(
-      "p",
-      "empty",
-      "Inget på gång den närmaste veckan",
-      "Ei mitään lähimmän viikon aikana",
-      "g",
-    )}\n` +
-    `        ${text(
-      "p",
-      "empty shared-hint",
-      "Inget eget den här veckan — se Gäller båda längst ner",
-      "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
-      "g",
-    )}\n`;
+    `        <p class="empty" data-t="${emptyKey}"${weekItems.length ? " hidden" : ""}>` +
+    `${esc(strings.sv[emptyKey])}</p>\n` +
+    `        <p class="empty shared-hint" data-t="${hintKey}" hidden>${esc(strings.sv[hintKey])}</p>\n`;
 
   const infoSection =
     buckets.info.length === 0
@@ -297,7 +328,7 @@ const page = `<title>Skolveckan hemma</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link
   rel="stylesheet"
-  href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+  href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
 />
 
 <style>
@@ -323,6 +354,16 @@ ${faces}
 ${options}
     </select>
   </div>
+
+  <noscript>
+    <style>
+      #kid {
+        pointer-events: none;
+        opacity: 0.6;
+      }
+    </style>
+    <p class="empty">Utan JavaScript visas bara det första barnet.</p>
+  </noscript>
 
   <button type="button" class="otherkid" id="otherkid" hidden></button>
 

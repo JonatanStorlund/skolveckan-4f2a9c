@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link
   rel="stylesheet"
-  href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+  href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
 />
 
 <style>
@@ -26,7 +26,6 @@
 
     /* Golv: konsumenter utanför en [data-kid]-panel ska ha något att falla på. */
     --accent: #16211f;
-    --wash: #e2e7e4;
 
     /* Etikettfärger: sex par, inte tio — annars blir listan en fruktsallad. */
     --tag-bring-fg: #8a4b12;
@@ -41,6 +40,15 @@
     --tag-event-bg: #f0e8f7;
     --tag-info-fg: #5a6862;
     --tag-info-bg: #e8ebe9;
+
+    /* Fyra steg. Tidigare tio storlekar, åtta av dem inom 0,22rem. */
+    --fs-micro: 0.72rem;
+    --fs-small: 0.82rem;
+    --fs-body: 0.95rem;
+    --fs-display: 1.1rem;
+
+    --r: 4px;
+    --r-sm: 3px;
 
     --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
     --body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -117,7 +125,7 @@
     background: var(--ground);
     color: var(--ink);
     font-family: var(--body);
-    font-size: 0.95rem;
+    font-size: var(--fs-body);
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
   }
@@ -150,7 +158,7 @@
 
   .eyebrow {
     font-family: var(--mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-micro);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--ink-mute);
@@ -161,14 +169,14 @@
     flex: none;
     display: flex;
     border: 1px solid var(--line-firm);
-    border-radius: 4px;
+    border-radius: var(--r);
     overflow: hidden;
   }
 
   /* 44 px höga träffytor — sidan används med tummen. */
   .lang button {
     font-family: var(--mono);
-    font-size: 0.75rem;
+    font-size: var(--fs-micro);
     letter-spacing: 0.06em;
     min-width: 2.75rem;
     min-height: 2.75rem;
@@ -192,14 +200,20 @@
     outline-offset: -3px;
   }
 
+  /* Den intryckta knappen har mörk fyllning, så accentringen försvann i den.
+     .lang har overflow: hidden, så ringen måste ligga inåt. */
+  .lang button[aria-pressed="true"]:focus-visible {
+    outline-color: var(--ground);
+  }
+
   /* --- Åldersvarning: en död körning ska ange sig själv --- */
 
   .stale {
     background: var(--urgent-wash);
     border: 1px solid var(--urgent);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.55rem 0.75rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-small);
     color: var(--urgent);
     margin: 0;
   }
@@ -230,12 +244,12 @@
     appearance: none;
     font-family: var(--display);
     font-weight: 600;
-    font-size: 1.1rem;
+    font-size: var(--fs-display);
     letter-spacing: -0.01em;
     color: var(--accent);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.4rem 2rem 0.4rem 0.7rem;
     cursor: pointer;
     /* Pilen ritas i bakgrunden så vi slipper ett extra element. */
@@ -262,10 +276,10 @@
     padding: 0 0.6rem;
     background: transparent;
     border: 1px solid var(--line-firm);
-    border-radius: 4px;
+    border-radius: var(--r);
     color: var(--ink-soft);
     font: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-small);
     cursor: pointer;
   }
 
@@ -282,12 +296,10 @@
 
   [data-kid="colin"] {
     --accent: var(--colin);
-    --wash: var(--colin-wash);
   }
 
   [data-kid="nellie"] {
     --accent: var(--nellie);
-    --wash: var(--nellie-wash);
   }
 
   .kid {
@@ -304,7 +316,7 @@
   }
 
   .where {
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     color: var(--ink-mute);
     margin: 0;
   }
@@ -313,7 +325,7 @@
 
   .group {
     background: var(--surface);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.55rem 0.7rem 0.65rem;
   }
 
@@ -323,7 +335,7 @@
 
   .glabel {
     font-family: var(--mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-micro);
     font-weight: 500;
     letter-spacing: 0.09em;
     text-transform: uppercase;
@@ -332,7 +344,7 @@
   }
 
   .empty {
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     color: var(--ink-mute);
     margin: 0.1rem 0 0;
   }
@@ -347,6 +359,28 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+
+  /* Subgrid ger alla rader samma spaltkant, så etiketterna bildar en kolumn i
+     stället för en ragg. Faller tillbaka på per-rad-grid där subgrid saknas. */
+  @supports (grid-template-columns: subgrid) {
+    .group > ul,
+    .shared > ul,
+    details.group > ul {
+      display: grid;
+      grid-template-columns: minmax(8rem, 1fr) auto;
+    }
+
+    .group > ul > li,
+    .shared > ul > li,
+    details.group > ul > li {
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+    }
+
+    li.dayhead {
+      grid-column: 1 / -1;
+    }
   }
 
   li {
@@ -385,30 +419,30 @@
 
   .note {
     grid-column: 1 / -1;
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     color: var(--ink-mute);
     margin: 0.05rem 0 0.1rem;
   }
 
   .when {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     font-variant-numeric: tabular-nums;
     color: var(--ink-soft);
     background: var(--surface-sunk);
     padding: 0.05rem 0.35rem;
-    border-radius: 3px;
+    border-radius: var(--r-sm);
   }
 
   .tag-kind {
     font-family: var(--mono);
-    font-size: 0.66rem;
+    font-size: var(--fs-micro);
     font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
     padding: 0.1rem 0.35rem;
-    border-radius: 3px;
+    border-radius: var(--r-sm);
     color: var(--tag-info-fg);
     background: var(--tag-info-bg);
   }
@@ -440,13 +474,20 @@
 
   .at {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     color: var(--ink-mute);
   }
 
   .rel {
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     color: var(--ink-mute);
+  }
+
+  /* Ett datum är en odelbar enhet — "tor–fre 10–" / "11.9" är inte ett datum. */
+  .when,
+  .rel,
+  .at {
+    white-space: nowrap;
   }
 
   .rel[data-state="soon"] {
@@ -469,7 +510,7 @@
   li.dayhead {
     display: block;
     font-family: var(--display);
-    font-size: 0.88rem;
+    font-size: var(--fs-small);
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--ink);
@@ -501,7 +542,7 @@
 
   .dayrel {
     font-family: var(--body);
-    font-size: 0.78rem;
+    font-size: var(--fs-micro);
     font-weight: 400;
     letter-spacing: 0;
     text-transform: none;
@@ -525,7 +566,7 @@
 
   details.unclear {
     background: var(--surface);
-    border-radius: 4px;
+    border-radius: var(--r);
     color: var(--ink-soft);
   }
 
@@ -568,10 +609,10 @@
 
   .count {
     font-family: var(--mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-micro);
     color: var(--ink-mute);
     background: var(--surface-sunk);
-    border-radius: 3px;
+    border-radius: var(--r-sm);
     padding: 0 0.3rem;
   }
 
@@ -581,7 +622,7 @@
   }
 
   details.unclear p {
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     margin: 0.3rem 0;
   }
 
@@ -590,13 +631,13 @@
   .shared {
     background: var(--urgent-wash);
     border: 1px solid var(--urgent);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.55rem 0.7rem 0.65rem;
   }
 
   .shared .tag {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--urgent);
@@ -650,7 +691,11 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    * {
+    /* Pseudoelement måste stå med: sidans enda transition ligger på
+       details summary::before, och * matchar inte den. */
+    *,
+    *::before,
+    *::after {
       animation: none !important;
       transition: none !important;
     }
@@ -679,6 +724,16 @@
     </select>
   </div>
 
+  <noscript>
+    <style>
+      #kid {
+        pointer-events: none;
+        opacity: 0.6;
+      }
+    </style>
+    <p class="empty">Utan JavaScript visas bara det första barnet.</p>
+  </noscript>
+
   <button type="button" class="otherkid" id="otherkid" hidden></button>
 
   <div class="panels">
@@ -689,7 +744,7 @@
         <h3 class="glabel" data-t="g19">Närmaste veckan</h3>
         <ul></ul>
         <p class="empty" data-t="g16">Inget på gång den närmaste veckan</p>
-        <p class="empty shared-hint" data-t="g17">Inget eget den här veckan — se Gäller båda längst ner</p>
+        <p class="empty shared-hint" data-t="g17" hidden>Inget eget den här veckan — se Gäller båda längst ner</p>
       </section>
       <section class="group" data-group="booking" hidden>
         <h3 class="glabel" data-t="g20">Boka tid</h3>
@@ -713,33 +768,33 @@
       <h2 class="sr-only">Nellie</h2>
       <p class="where">Bonäs skola · 2b</p>
       <section class="group" data-group="week">
-        <h3 class="glabel" data-t="g40">Närmaste veckan</h3>
-        <ul><li data-kind="ta_med" data-date="2026-08-25"><span class="what" data-t="i23">Utekläder och skor — gympan blir promenad</span><span class="meta"><span class="when" data-t="w24">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="bring" data-t="tag25">Ta med</span></span><p class="note" data-t="n26">Ombyteskläder behövs inte.</p></li><li data-kind="laxa" data-date="2026-08-24"><span class="what" data-t="i27">Matematik: Kom ihåg s. 27</span><span class="meta"><span class="when" data-t="w28">mån 24.8</span><span class="rel" data-date="2026-08-24"></span><span class="tag-kind" data-tag="home" data-t="tag29">Läxa</span></span></li><li data-kind="laxa" data-date="2026-08-25"><span class="what" data-t="i30">Läsläxa: Hemligheten kap. 2, s. 6–7</span><span class="meta"><span class="when" data-t="w31">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="home" data-t="tag32">Läxa</span></span></li></ul>
-        <p class="empty" data-t="g36">Inget på gång den närmaste veckan</p>
-        <p class="empty shared-hint" data-t="g37">Inget eget den här veckan — se Gäller båda längst ner</p>
+        <h3 class="glabel" data-t="g44">Närmaste veckan</h3>
+        <ul><li class="dayhead" data-t="d23">mån 24.8<span class="dayrel" data-state="soon" data-t="d24">om 3 dagar</span></li><li data-kind="laxa" data-date="2026-08-24"><span class="what" data-t="i25">Matematik: Kom ihåg s. 27</span><span class="meta"><span class="when" data-t="w26">mån 24.8</span><span class="rel" data-date="2026-08-24"></span><span class="tag-kind" data-tag="home" data-t="tag27">Läxa</span></span></li><li class="dayhead" data-t="d28">tis 25.8<span class="dayrel" data-state="soon" data-t="d29">om 4 dagar</span></li><li data-kind="ta_med" data-date="2026-08-25"><span class="what" data-t="i30">Utekläder och skor — gympan blir promenad</span><span class="meta"><span class="when" data-t="w31">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="bring" data-t="tag32">Ta med</span></span><p class="note" data-t="n33">Ombyteskläder behövs inte.</p></li><li data-kind="laxa" data-date="2026-08-25"><span class="what" data-t="i34">Läsläxa: Hemligheten kap. 2, s. 6–7</span><span class="meta"><span class="when" data-t="w35">tis 25.8</span><span class="rel" data-date="2026-08-25"></span><span class="tag-kind" data-tag="home" data-t="tag36">Läxa</span></span></li></ul>
+        <p class="empty" data-t="g40" hidden>Inget på gång den närmaste veckan</p>
+        <p class="empty shared-hint" data-t="g41" hidden>Inget eget den här veckan — se Gäller båda längst ner</p>
       </section>
       <section class="group" data-group="booking" hidden>
-        <h3 class="glabel" data-t="g41">Boka tid</h3>
+        <h3 class="glabel" data-t="g45">Boka tid</h3>
         <ul></ul>
       </section>
       <section class="group" data-group="later">
-        <h3 class="glabel" data-t="g42">Viktiga datum</h3>
-        <ul><li data-kind="evenemang" data-date="2026-09-10"><span class="what" data-t="i33">Skolfotografering</span><span class="meta"><span class="when" data-t="w34">tor–fre 10–11.9</span><span class="rel" data-date="2026-09-10"></span><span class="tag-kind" data-tag="event" data-t="tag35">Evenemang</span></span></li></ul>
+        <h3 class="glabel" data-t="g46">Viktiga datum</h3>
+        <ul><li data-kind="evenemang" data-date="2026-09-10"><span class="what" data-t="i37">Skolfotografering</span><span class="meta"><span class="when" data-t="w38">tor–fre 10–11.9</span><span class="rel" data-date="2026-09-10"></span><span class="tag-kind" data-tag="event" data-t="tag39">Evenemang</span></span></li></ul>
       </section>
       <section class="group" data-group="exams" hidden>
-        <h3 class="glabel" data-t="g43">Prov</h3>
+        <h3 class="glabel" data-t="g47">Prov</h3>
         <ul></ul>
       </section>
       <details class="unclear">
-        <summary><span class="glabel" data-t="u38">Oklart</span> <span class="count">1</span></summary>
-        <p data-t="u39">Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.</p>
+        <summary><span class="glabel" data-t="u42">Oklart</span> <span class="count">1</span></summary>
+        <p data-t="u43">Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.</p>
       </details>
     </section>
   </div>
 
   <section class="shared">
-    <p class="tag" data-t="s48">Gäller båda</p>
-    <ul><li data-kind="andrad_tid" data-date="2026-08-25"><span class="what" data-t="s44">Skoldagen slutar kl. 12.15</span><span class="meta"><span class="when" data-t="w45">tis 25.8</span><span class="rel" data-date="2026-08-25"></span></span><span class="meta"><span class="tag-kind" data-tag="time" data-t="tag46">Ändrad tid</span></span><p class="note" data-t="n47">Eftis fungerar normalt.</p></li></ul>
+    <p class="tag" data-t="s52">Gäller båda</p>
+    <ul><li data-kind="andrad_tid" data-date="2026-08-25"><span class="what" data-t="s48">Skoldagen slutar kl. 12.15</span><span class="meta"><span class="when" data-t="w49">tis 25.8</span><span class="rel" data-date="2026-08-25"></span></span><span class="meta"><span class="tag-kind" data-tag="time" data-t="tag50">Ändrad tid</span></span><p class="note" data-t="n51">Eftis fungerar normalt.</p></li></ul>
   </section>
 </div>
 
@@ -771,32 +826,36 @@
         g20: "Boka tid",
         g21: "Viktiga datum",
         g22: "Prov",
-        i23: "Utekläder och skor — gympan blir promenad",
-        w24: "tis 25.8",
-        tag25: "Ta med",
-        n26: "Ombyteskläder behövs inte.",
-        i27: "Matematik: Kom ihåg s. 27",
-        w28: "mån 24.8",
-        tag29: "Läxa",
-        i30: "Läsläxa: Hemligheten kap. 2, s. 6–7",
+        d23: "mån 24.8",
+        d24: "om 3 dagar",
+        i25: "Matematik: Kom ihåg s. 27",
+        w26: "mån 24.8",
+        tag27: "Läxa",
+        d28: "tis 25.8",
+        d29: "om 4 dagar",
+        i30: "Utekläder och skor — gympan blir promenad",
         w31: "tis 25.8",
-        tag32: "Läxa",
-        i33: "Skolfotografering",
-        w34: "tor–fre 10–11.9",
-        tag35: "Evenemang",
-        g36: "Inget på gång den närmaste veckan",
-        g37: "Inget eget den här veckan — se Gäller båda längst ner",
-        u38: "Oklart",
-        u39: "Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.",
-        g40: "Närmaste veckan",
-        g41: "Boka tid",
-        g42: "Viktiga datum",
-        g43: "Prov",
-        s44: "Skoldagen slutar kl. 12.15",
-        w45: "tis 25.8",
-        tag46: "Ändrad tid",
-        n47: "Eftis fungerar normalt.",
-        s48: "Gäller båda",
+        tag32: "Ta med",
+        n33: "Ombyteskläder behövs inte.",
+        i34: "Läsläxa: Hemligheten kap. 2, s. 6–7",
+        w35: "tis 25.8",
+        tag36: "Läxa",
+        i37: "Skolfotografering",
+        w38: "tor–fre 10–11.9",
+        tag39: "Evenemang",
+        g40: "Inget på gång den närmaste veckan",
+        g41: "Inget eget den här veckan — se Gäller båda längst ner",
+        u42: "Oklart",
+        u43: "Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.",
+        g44: "Närmaste veckan",
+        g45: "Boka tid",
+        g46: "Viktiga datum",
+        g47: "Prov",
+        s48: "Skoldagen slutar kl. 12.15",
+        w49: "tis 25.8",
+        tag50: "Ändrad tid",
+        n51: "Eftis fungerar normalt.",
+        s52: "Gäller båda",
       },
       fi: {
         hdr0: "Päivitetty 2026-08-21",
@@ -822,32 +881,36 @@
         g20: "Varaa aika",
         g21: "Tärkeät päivät",
         g22: "Kokeet",
-        i23: "Ulkovaatteet ja kengät — liikunta on kävelyretki",
-        w24: "ti 25.8.",
-        tag25: "Ota mukaan",
-        n26: "Vaihtovaatteita ei tarvita.",
-        i27: "Matematiikka: Muista s. 27",
-        w28: "ma 24.8.",
-        tag29: "Läksy",
-        i30: "Lukuläksy: Hemligheten luku 2, s. 6–7",
+        d23: "ma 24.8.",
+        d24: "3 päivän päästä",
+        i25: "Matematiikka: Muista s. 27",
+        w26: "ma 24.8.",
+        tag27: "Läksy",
+        d28: "ti 25.8.",
+        d29: "4 päivän päästä",
+        i30: "Ulkovaatteet ja kengät — liikunta on kävelyretki",
         w31: "ti 25.8.",
-        tag32: "Läksy",
-        i33: "Koulukuvaus",
-        w34: "to–pe 10.–11.9.",
-        tag35: "Tapahtuma",
-        g36: "Ei mitään lähimmän viikon aikana",
-        g37: "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
-        u38: "Epäselvää",
-        u39: "Maanantain käsityön teema on omenat — epäselvää pitääkö kotoa ottaa jotain.",
-        g40: "Lähin viikko",
-        g41: "Varaa aika",
-        g42: "Tärkeät päivät",
-        g43: "Kokeet",
-        s44: "Koulupäivä päättyy klo 12.15",
-        w45: "ti 25.8.",
-        tag46: "Muuttunut aika",
-        n47: "Iltapäivätoiminta toimii normaalisti.",
-        s48: "Koskee molempia",
+        tag32: "Ota mukaan",
+        n33: "Vaihtovaatteita ei tarvita.",
+        i34: "Lukuläksy: Hemligheten luku 2, s. 6–7",
+        w35: "ti 25.8.",
+        tag36: "Läksy",
+        i37: "Koulukuvaus",
+        w38: "to–pe 10.–11.9.",
+        tag39: "Tapahtuma",
+        g40: "Ei mitään lähimmän viikon aikana",
+        g41: "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
+        u42: "Epäselvää",
+        u43: "Maanantain käsityön teema on omenat — epäselvää pitääkö kotoa ottaa jotain.",
+        g44: "Lähin viikko",
+        g45: "Varaa aika",
+        g46: "Tärkeät päivät",
+        g47: "Kokeet",
+        s48: "Koulupäivä päättyy klo 12.15",
+        w49: "ti 25.8.",
+        tag50: "Muuttunut aika",
+        n51: "Iltapäivätoiminta toimii normaalisti.",
+        s52: "Koskee molempia",
       },
     };
     const WORDS = {

@@ -17,7 +17,6 @@
 
     /* Golv: konsumenter utanför en [data-kid]-panel ska ha något att falla på. */
     --accent: #16211f;
-    --wash: #e2e7e4;
 
     /* Etikettfärger: sex par, inte tio — annars blir listan en fruktsallad. */
     --tag-bring-fg: #8a4b12;
@@ -32,6 +31,15 @@
     --tag-event-bg: #f0e8f7;
     --tag-info-fg: #5a6862;
     --tag-info-bg: #e8ebe9;
+
+    /* Fyra steg. Tidigare tio storlekar, åtta av dem inom 0,22rem. */
+    --fs-micro: 0.72rem;
+    --fs-small: 0.82rem;
+    --fs-body: 0.95rem;
+    --fs-display: 1.1rem;
+
+    --r: 4px;
+    --r-sm: 3px;
 
     --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
     --body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -108,7 +116,7 @@
     background: var(--ground);
     color: var(--ink);
     font-family: var(--body);
-    font-size: 0.95rem;
+    font-size: var(--fs-body);
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
   }
@@ -141,7 +149,7 @@
 
   .eyebrow {
     font-family: var(--mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-micro);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--ink-mute);
@@ -152,14 +160,14 @@
     flex: none;
     display: flex;
     border: 1px solid var(--line-firm);
-    border-radius: 4px;
+    border-radius: var(--r);
     overflow: hidden;
   }
 
   /* 44 px höga träffytor — sidan används med tummen. */
   .lang button {
     font-family: var(--mono);
-    font-size: 0.75rem;
+    font-size: var(--fs-micro);
     letter-spacing: 0.06em;
     min-width: 2.75rem;
     min-height: 2.75rem;
@@ -183,14 +191,20 @@
     outline-offset: -3px;
   }
 
+  /* Den intryckta knappen har mörk fyllning, så accentringen försvann i den.
+     .lang har overflow: hidden, så ringen måste ligga inåt. */
+  .lang button[aria-pressed="true"]:focus-visible {
+    outline-color: var(--ground);
+  }
+
   /* --- Åldersvarning: en död körning ska ange sig själv --- */
 
   .stale {
     background: var(--urgent-wash);
     border: 1px solid var(--urgent);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.55rem 0.75rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-small);
     color: var(--urgent);
     margin: 0;
   }
@@ -221,12 +235,12 @@
     appearance: none;
     font-family: var(--display);
     font-weight: 600;
-    font-size: 1.1rem;
+    font-size: var(--fs-display);
     letter-spacing: -0.01em;
     color: var(--accent);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.4rem 2rem 0.4rem 0.7rem;
     cursor: pointer;
     /* Pilen ritas i bakgrunden så vi slipper ett extra element. */
@@ -253,10 +267,10 @@
     padding: 0 0.6rem;
     background: transparent;
     border: 1px solid var(--line-firm);
-    border-radius: 4px;
+    border-radius: var(--r);
     color: var(--ink-soft);
     font: inherit;
-    font-size: 0.82rem;
+    font-size: var(--fs-small);
     cursor: pointer;
   }
 
@@ -273,12 +287,10 @@
 
   [data-kid="colin"] {
     --accent: var(--colin);
-    --wash: var(--colin-wash);
   }
 
   [data-kid="nellie"] {
     --accent: var(--nellie);
-    --wash: var(--nellie-wash);
   }
 
   .kid {
@@ -295,7 +307,7 @@
   }
 
   .where {
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     color: var(--ink-mute);
     margin: 0;
   }
@@ -304,7 +316,7 @@
 
   .group {
     background: var(--surface);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.55rem 0.7rem 0.65rem;
   }
 
@@ -314,7 +326,7 @@
 
   .glabel {
     font-family: var(--mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-micro);
     font-weight: 500;
     letter-spacing: 0.09em;
     text-transform: uppercase;
@@ -323,7 +335,7 @@
   }
 
   .empty {
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     color: var(--ink-mute);
     margin: 0.1rem 0 0;
   }
@@ -338,6 +350,28 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+
+  /* Subgrid ger alla rader samma spaltkant, så etiketterna bildar en kolumn i
+     stället för en ragg. Faller tillbaka på per-rad-grid där subgrid saknas. */
+  @supports (grid-template-columns: subgrid) {
+    .group > ul,
+    .shared > ul,
+    details.group > ul {
+      display: grid;
+      grid-template-columns: minmax(8rem, 1fr) auto;
+    }
+
+    .group > ul > li,
+    .shared > ul > li,
+    details.group > ul > li {
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+    }
+
+    li.dayhead {
+      grid-column: 1 / -1;
+    }
   }
 
   li {
@@ -376,30 +410,30 @@
 
   .note {
     grid-column: 1 / -1;
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     color: var(--ink-mute);
     margin: 0.05rem 0 0.1rem;
   }
 
   .when {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     font-variant-numeric: tabular-nums;
     color: var(--ink-soft);
     background: var(--surface-sunk);
     padding: 0.05rem 0.35rem;
-    border-radius: 3px;
+    border-radius: var(--r-sm);
   }
 
   .tag-kind {
     font-family: var(--mono);
-    font-size: 0.66rem;
+    font-size: var(--fs-micro);
     font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
     padding: 0.1rem 0.35rem;
-    border-radius: 3px;
+    border-radius: var(--r-sm);
     color: var(--tag-info-fg);
     background: var(--tag-info-bg);
   }
@@ -431,13 +465,20 @@
 
   .at {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     color: var(--ink-mute);
   }
 
   .rel {
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     color: var(--ink-mute);
+  }
+
+  /* Ett datum är en odelbar enhet — "tor–fre 10–" / "11.9" är inte ett datum. */
+  .when,
+  .rel,
+  .at {
+    white-space: nowrap;
   }
 
   .rel[data-state="soon"] {
@@ -460,7 +501,7 @@
   li.dayhead {
     display: block;
     font-family: var(--display);
-    font-size: 0.88rem;
+    font-size: var(--fs-small);
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--ink);
@@ -492,7 +533,7 @@
 
   .dayrel {
     font-family: var(--body);
-    font-size: 0.78rem;
+    font-size: var(--fs-micro);
     font-weight: 400;
     letter-spacing: 0;
     text-transform: none;
@@ -516,7 +557,7 @@
 
   details.unclear {
     background: var(--surface);
-    border-radius: 4px;
+    border-radius: var(--r);
     color: var(--ink-soft);
   }
 
@@ -559,10 +600,10 @@
 
   .count {
     font-family: var(--mono);
-    font-size: 0.7rem;
+    font-size: var(--fs-micro);
     color: var(--ink-mute);
     background: var(--surface-sunk);
-    border-radius: 3px;
+    border-radius: var(--r-sm);
     padding: 0 0.3rem;
   }
 
@@ -572,7 +613,7 @@
   }
 
   details.unclear p {
-    font-size: 0.78rem;
+    font-size: var(--fs-small);
     margin: 0.3rem 0;
   }
 
@@ -581,13 +622,13 @@
   .shared {
     background: var(--urgent-wash);
     border: 1px solid var(--urgent);
-    border-radius: 4px;
+    border-radius: var(--r);
     padding: 0.55rem 0.7rem 0.65rem;
   }
 
   .shared .tag {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: var(--fs-micro);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--urgent);
@@ -641,7 +682,11 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    * {
+    /* Pseudoelement måste stå med: sidans enda transition ligger på
+       details summary::before, och * matchar inte den. */
+    *,
+    *::before,
+    *::after {
       animation: none !important;
       transition: none !important;
     }

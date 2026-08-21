@@ -77,6 +77,26 @@ if (duplicates.length) {
   process.exit(1);
 }
 
+// Den mörka paletten står två gånger (media query + [data-theme]) eftersom CSS
+// inte kan dela ett block mellan dem. Då ska en vakt se att de är lika.
+const darkBlocks = [
+  /@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{([\s\S]*?)\}/.exec(css),
+  /:root\[data-theme="dark"\] \{([\s\S]*?)\}/.exec(css),
+].map((m) => (m ? m[1].replace(/\s+/g, " ").trim() : null));
+
+if (darkBlocks[0] && darkBlocks[1] && darkBlocks[0] !== darkBlocks[1]) {
+  const tokens = (block) => new Map(
+    [...block.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+  );
+  const a = tokens(darkBlocks[0]);
+  const b = tokens(darkBlocks[1]);
+  const diff = [...new Set([...a.keys(), ...b.keys()])]
+    .filter((k) => a.get(k) !== b.get(k))
+    .map((k) => `  ${k}: media=${a.get(k) ?? "(saknas)"} toggle=${b.get(k) ?? "(saknas)"}`);
+  console.error(`De två mörka paletterna har glidit isär:\n${diff.join("\n")}`);
+  process.exit(1);
+}
+
 const page = `<!doctype html>
 <html lang="sv">
 <head>
