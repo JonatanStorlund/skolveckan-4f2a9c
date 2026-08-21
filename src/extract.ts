@@ -11,6 +11,7 @@ export const ItemKind = z.enum([
   "evenemang",
   "betalning",
   "laxa",
+  "bokning",
   "info",
 ]);
 

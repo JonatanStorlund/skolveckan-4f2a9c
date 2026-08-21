@@ -34,6 +34,7 @@ RULES
    - evenemang — event, trip, swimming, outing, photography, visit
    - betalning — money to pay
    - laxa — homework for a specific day (reading, maths pages, something to finish at home)
+   - bokning — an invitation where the PARENT must reserve, choose or confirm a time: a parents' evening to sign up for, a development discussion (utvecklingssamtal/arviointikeskustelu) with slots to pick, a health check to agree, a save-the-date that asks you to hold an evening. Use this even when the date itself is months away — the booking is the action, and it is easy to forget.
    - info — must know, no action required
 
 9. Put stated amounts of money, required equipment and locations inside 'text' when the message gives them.

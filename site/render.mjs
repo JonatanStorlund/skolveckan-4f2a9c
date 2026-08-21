@@ -20,17 +20,30 @@ const root = path.join(here, "..");
 const data = JSON.parse(readFileSync(path.join(root, "data", "oversikt.json"), "utf8"));
 const css = readFileSync(path.join(here, "style.css"), "utf8").trimEnd();
 
-const ICONS = {
-  ta_med: "🎒",
-  deadline: "✍️",
-  ingen_skola: "🚫",
-  andrad_tid: "🕒",
-  evenemang: "📍",
-  betalning: "💳",
-  laxa: "📖",
-  prov: "📝",
-  info: "ℹ️",
+/**
+ * En textetikett i stället för en emoji. 12,8 px emoji var tre likadana fläckar,
+ * och den kostade hela första kolumnen — nu börjar titeln längst till vänster.
+ *
+ * `palette` grupperar slagen i sex färger; fler hade blivit fruktsallad.
+ */
+const TAGS = {
+  ta_med: { sv: "Ta med", fi: "Ota mukaan", palette: "bring" },
+  laxa: { sv: "Läxa", fi: "Läksy", palette: "home" },
+  deadline: { sv: "Deadline", fi: "Määräaika", palette: "do" },
+  bokning: { sv: "Boka tid", fi: "Varaa aika", palette: "do" },
+  betalning: { sv: "Betalning", fi: "Maksu", palette: "bring" },
+  andrad_tid: { sv: "Ändrad tid", fi: "Muuttunut aika", palette: "time" },
+  ingen_skola: { sv: "Ingen skola", fi: "Ei koulua", palette: "time" },
+  evenemang: { sv: "Evenemang", fi: "Tapahtuma", palette: "event" },
+  prov: { sv: "Prov", fi: "Koe", palette: "event" },
+  info: { sv: "Info", fi: "Tieto", palette: "info" },
 };
+
+function tagMarkup(kind) {
+  const tag = TAGS[kind] ?? TAGS.info;
+  const k = key(tag.sv, tag.fi, "tag");
+  return `<span class="tag-kind" data-tag="${tag.palette}" data-t="${k}">${esc(tag.sv)}</span>`;
+}
 
 const esc = (s) =>
   String(s ?? "").replace(
@@ -89,8 +102,9 @@ const WEEK_END = (() => {
 
 /** Samma indelning som webbläsaren gör; här bara för utgångsläget. */
 function bucketOf(item) {
+  if (item.date && item.date < TODAY) return "past";
+  if (item.kind === "bokning") return "booking";
   if (!item.date) return "info";
-  if (item.date < TODAY) return "past";
   if (item.date <= WEEK_END) return "week";
   return item.kind === "info" ? "info" : "later";
 }
@@ -98,7 +112,6 @@ function bucketOf(item) {
 // --- Poster --------------------------------------------------------------
 
 function itemMarkup(item) {
-  const icon = ICONS[item.kind] ?? "•";
   const k = key(item.sv.text, item.fi.text, "i");
 
   const label = `<span class="what" data-t="${k}">${esc(item.sv.text)}</span>`;
@@ -114,12 +127,14 @@ function itemMarkup(item) {
     const tk = key(item.time, item.time, "w");
     bits.push(`<span class="at" data-t="${tk}">${esc(item.time)}</span>`);
   }
-  const meta = bits.length ? `<span class="meta">${bits.join("")}</span>` : "";
+  // Etiketten sist i raden, så den hamnar längst till höger även när datumet
+  // och den relativa texten radbryter.
+  bits.push(tagMarkup(item.kind));
   const note = text("p", "note", item.sv.note, item.fi.note, "n");
 
   return (
     `<li data-kind="${esc(item.kind)}"${item.date ? ` data-date="${esc(item.date)}"` : ""}>` +
-    `<span class="icon">${icon}</span>${label}${meta}${note}</li>`
+    `${label}<span class="meta">${bits.join("")}</span>${note}</li>`
   );
 }
 
@@ -129,10 +144,9 @@ function examItem(exam) {
   const wk = key(l.sv, l.fi, "w");
   return (
     `<li data-kind="prov" data-date="${esc(exam.date)}">` +
-    `<span class="icon">${ICONS.prov}</span>` +
     `<span class="what" data-t="${k}">${esc(exam.subject)}</span>` +
     `<span class="meta"><span class="when" data-t="${wk}">${esc(l.sv)}</span>` +
-    `<span class="rel" data-date="${esc(exam.date)}"></span></span></li>`
+    `<span class="rel" data-date="${esc(exam.date)}"></span>${tagMarkup("prov")}</span></li>`
   );
 }
 
@@ -147,7 +161,7 @@ function group(name, labelSv, labelFi, rows, extra = "") {
 }
 
 function childMarkup(child, first) {
-  const buckets = { week: [], later: [], exams: [], info: [] };
+  const buckets = { week: [], booking: [], later: [], exams: [], info: [] };
   child.items.forEach((item) => {
     const bucket = bucketOf(item);
     if (bucket === "past") return;
@@ -155,13 +169,21 @@ function childMarkup(child, first) {
   });
   child.exams.forEach((exam) => buckets.exams.push(examItem(exam)));
 
-  const emptyWeek = `        ${text(
-    "p",
-    "empty",
-    "Inget på gång den närmaste veckan",
-    "Ei mitään lähimmän viikon aikana",
-    "g",
-  )}\n`;
+  const emptyWeek =
+    `        ${text(
+      "p",
+      "empty",
+      "Inget på gång den närmaste veckan",
+      "Ei mitään lähimmän viikon aikana",
+      "g",
+    )}\n` +
+    `        ${text(
+      "p",
+      "empty shared-hint",
+      "Inget eget den här veckan — se Gäller båda längst ner",
+      "Ei omia tällä viikolla — katso Koskee molempia alhaalta",
+      "g",
+    )}\n`;
 
   const infoSection =
     buckets.info.length === 0
@@ -189,6 +211,7 @@ function childMarkup(child, first) {
     `      <h2 class="sr-only">${esc(child.name)}</h2>`,
     `      <p class="where">${esc(child.school)} · ${esc(child.className)}</p>`,
     group("week", "Närmaste veckan", "Lähin viikko", buckets.week, emptyWeek),
+    group("booking", "Boka tid", "Varaa aika", buckets.booking),
     group("later", "Viktiga datum", "Tärkeät päivät", buckets.later),
     group("exams", "Prov", "Kokeet", buckets.exams),
     infoSection,
@@ -213,6 +236,7 @@ function sharedMarkup(shared) {
           `<span class="rel" data-date="${esc(item.date)}"></span></span>`,
       );
     }
+    bits.push(`<span class="meta">${tagMarkup(item.kind ?? "info")}</span>`);
     const note = text("p", "note", item.sv.note, item.fi.note, "n");
     return (
       `<li data-kind="${esc(item.kind ?? "info")}"${item.date ? ` data-date="${esc(item.date)}"` : ""}>` +
@@ -254,7 +278,10 @@ const faces = data.children
   .join("\n");
 
 const options = data.children
-  .map((child) => `      <option value="${esc(child.slug)}">${esc(child.name)}</option>`)
+  .map(
+    (child) =>
+      `      <option value="${esc(child.slug)}" data-name="${esc(child.name)}">${esc(child.name)}</option>`,
+  )
   .join("\n");
 
 const panels = data.children.map((child, i) => childMarkup(child, i === 0)).join("\n\n");
@@ -296,6 +323,8 @@ ${faces}
 ${options}
     </select>
   </div>
+
+  <button type="button" class="otherkid" id="otherkid" hidden></button>
 
   <div class="panels">
 ${panels}
@@ -378,14 +407,23 @@ ${table(strings.fi)}
       // Passerat först: ett prov som varit ska gömmas som allt annat som varit.
       if (date && date < todayIso) return "past";
       if (li.dataset.kind === "prov") return "exams";
+      if (li.dataset.kind === "bokning") return "booking";
       if (!date) return "info";
       if (date <= weekEndIso) return "week";
       return li.dataset.kind === "info" ? "info" : "later";
     }
 
+    /* Inom en dag: packa väskan före läxan. Ordningen speglar morgonen. */
+    const KIND_RANK = ["ta_med", "laxa", "betalning", "deadline", "andrad_tid", "ingen_skola", "evenemang", "bokning", "info"];
+    const rankOf = (li) => {
+      const i = KIND_RANK.indexOf(li.dataset.kind);
+      return i === -1 ? KIND_RANK.length : i;
+    };
+
     function regroup(panel, words) {
       const groups = {
         week: panel.querySelector('.group[data-group="week"]'),
+        booking: panel.querySelector('.group[data-group="booking"]'),
         later: panel.querySelector('.group[data-group="later"]'),
         exams: panel.querySelector('.group[data-group="exams"]'),
         info: panel.querySelector('details[data-group="info"]'),
@@ -407,7 +445,10 @@ ${table(strings.fi)}
       if (weekList) {
         for (const old of [...weekList.querySelectorAll("li.dayhead")]) old.remove();
         const live = [...weekList.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
-        live.sort((a, b) => (a.dataset.date || "").localeCompare(b.dataset.date || ""));
+        live.sort(
+          (a, b) =>
+            (a.dataset.date || "").localeCompare(b.dataset.date || "") || rankOf(a) - rankOf(b),
+        );
         let lastDate = null;
         for (const li of live) {
           weekList.append(li);
@@ -430,17 +471,23 @@ ${table(strings.fi)}
             if (rel) {
               const span = document.createElement("span");
               span.className = "dayrel";
+              // Tillståndet är det som gör i dag och imorgon typografiskt högre —
+              // utan det såg "idag" ut precis som "om 20 dagar".
+              span.dataset.state = days === 0 ? "today" : days === 1 ? "tomorrow" : "soon";
               span.textContent = rel;
               head.append(span);
             }
             weekList.insertBefore(head, li);
           }
         }
-        const empty = groups.week.querySelector(".empty");
-        if (empty) empty.hidden = live.length > 0;
+        const sharedLive = [...document.querySelectorAll(".shared li")].some((li) => !li.hidden);
+        const plain = groups.week.querySelector(".empty:not(.shared-hint)");
+        const hint = groups.week.querySelector(".empty.shared-hint");
+        if (plain) plain.hidden = live.length > 0 || sharedLive;
+        if (hint) hint.hidden = live.length > 0 || !sharedLive;
       }
 
-      for (const name of ["later", "exams"]) {
+      for (const name of ["booking", "later", "exams"]) {
         const g = groups[name];
         if (!g) continue;
         g.hidden = ![...g.querySelectorAll("li[data-kind]")].some((li) => !li.hidden);
@@ -479,7 +526,9 @@ ${table(strings.fi)}
     }
 
     const stale = document.getElementById("stale");
-    if (stale) stale.hidden = daysFrom(STAMP) > -3;
+    // Fredagsbygge läst på måndag är -3 och helt normalt — sidan byggs på
+    // fredagar just därför. Varna först vid fyra dygn.
+    if (stale) stale.hidden = daysFrom(STAMP) > -4;
 
     function setLang(lang) {
       const tableFor = STRINGS[lang] || STRINGS.sv;
@@ -530,9 +579,49 @@ ${table(strings.fi)}
       picker.dataset.kid = kid;
       select.value = kid;
       store.set(KID_KEY, kid);
+      updateCounts(kid);
+    }
+
+    /** Vad ett barn har på gång: veckan, bokningar, framåt och prov. Inte info. */
+    function liveCount(panel) {
+      return ["week", "booking", "later", "exams"].reduce((sum, name) => {
+        const g = panel.querySelector(\`.group[data-group="\${name}"]\`);
+        if (!g) return sum;
+        return sum + [...g.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden).length;
+      }, 0);
+    }
+
+    const other = document.getElementById("otherkid");
+
+    function updateCounts(current) {
+      const counts = new Map();
+      for (const panel of panels) counts.set(panel.dataset.kid, liveCount(panel));
+
+      for (const option of select.options) {
+        const n = counts.get(option.value) ?? 0;
+        const name = option.dataset.name || option.value;
+        option.textContent = n > 0 ? \`\${name} · \${n}\` : name;
+      }
+
+      // En väljare visar ett barn i taget. Det andra barnets måndagsläxa får
+      // inte vara osynlig bara därför.
+      if (!other) return;
+      const next = panels.map((p) => p.dataset.kid).find((kid) => kid !== current);
+      const n = next ? (counts.get(next) ?? 0) : 0;
+      if (!next || n === 0) {
+        other.hidden = true;
+        return;
+      }
+      const label = select.querySelector(\`option[value="\${next}"]\`)?.dataset.name || next;
+      other.hidden = false;
+      other.dataset.kid = next;
+      other.textContent = \`\${label} · \${n}\`;
+      other.setAttribute("aria-label", \`\${label}: \${n}\`);
     }
 
     select.addEventListener("change", () => setKid(select.value));
+    if (other) other.addEventListener("click", () => setKid(other.dataset.kid));
+
     const savedKid = store.get(KID_KEY, null);
     setKid(kids.includes(savedKid) ? savedKid : kids[0]);
 

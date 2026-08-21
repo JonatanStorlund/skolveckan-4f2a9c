@@ -202,15 +202,42 @@ check("datumet står en gång per dag, inte en gång per rad", () => {
   );
 });
 
-check("texten ligger i mittkolumnen, datumet till höger", () => {
+check("texten börjar längst till vänster, etiketten till höger", () => {
   const w = open("2026-08-21");
   const css = w.document.querySelector("style").textContent;
   const meta = [...css.matchAll(/\n  \.meta \{([^}]*)\}/g)];
   assert.equal(meta.length, 1, `${meta.length} .meta-regler — dubbletter kastar layouten`);
-  assert.match(meta[0][1], /grid-column: 3/, "datumet hamnar inte i tredje kolumnen");
+  assert.match(meta[0][1], /grid-column: 2/, "högerspalten sitter fel");
   const what = [...css.matchAll(/\n  \.what \{([^}]*)\}/g)];
   assert.equal(what.length, 1, "dubblerad .what-regel");
-  assert.match(what[0][1], /grid-column: 2/, "texten hamnar inte i andra kolumnen");
+  assert.match(what[0][1], /grid-column: 1/, "texten börjar inte längst till vänster");
+  assert.equal(w.document.querySelectorAll(".icon").length, 0, "ikonkolumnen finns kvar");
+});
+
+check("varje post har en färgkodad etikett med båda språken", () => {
+  const w = open("2026-08-21");
+  const items = [...w.document.querySelectorAll("li[data-kind]")];
+  assert.ok(items.length > 0);
+  for (const li of items) {
+    const tag = li.querySelector(".tag-kind");
+    assert.ok(tag, `post utan etikett: ${li.textContent.trim().slice(0, 40)}`);
+    assert.ok(tag.dataset.tag, "etiketten saknar färgnyckel");
+    assert.ok(tag.textContent.trim().length > 0, "tom etikett");
+  }
+  // Etiketten är sista barnet i .meta, så den hamnar längst till höger.
+  const meta = items[0].querySelector(".meta");
+  assert.equal(meta.lastElementChild.className, "tag-kind", "etiketten ligger inte sist");
+
+  w.document.querySelector('.lang button[data-lang="fi"]').click();
+  const fiTag = items[0].querySelector(".tag-kind").textContent;
+  assert.ok(fiTag.length > 0, "etiketten tömdes vid språkbyte");
+});
+
+check("bokningar hamnar i eget fack, inte i dropdownen", () => {
+  const w = open("2026-08-21");
+  const panel = w.document.querySelector("section.kid");
+  const booking = panel.querySelector('.group[data-group="booking"]');
+  assert.ok(booking, "inget bokningsfack renderades");
 });
 
 // --- Åldersvarning ---

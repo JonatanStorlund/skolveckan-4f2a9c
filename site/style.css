@@ -5,7 +5,7 @@
     --surface-sunk: #e2e7e4;
     --ink: #16211f;
     --ink-soft: #47554f;
-    --ink-mute: #61706a;
+    --ink-mute: #5a6862;
     --line: #d2dad6;
     --line-firm: #b9c4bf;
     --colin: #26606b;
@@ -14,6 +14,24 @@
     --nellie-wash: #f2e7ed;
     --urgent: #9d4318;
     --urgent-wash: #f8e8de;
+
+    /* Golv: konsumenter utanför en [data-kid]-panel ska ha något att falla på. */
+    --accent: #16211f;
+    --wash: #e2e7e4;
+
+    /* Etikettfärger: sex par, inte tio — annars blir listan en fruktsallad. */
+    --tag-bring-fg: #8a4b12;
+    --tag-bring-bg: #f7ecdc;
+    --tag-home-fg: #2d4a86;
+    --tag-home-bg: #e6ecf8;
+    --tag-do-fg: #7c3f5e;
+    --tag-do-bg: #f6e8ef;
+    --tag-time-fg: #1f5f5b;
+    --tag-time-bg: #e2f0ee;
+    --tag-event-fg: #6b3a8a;
+    --tag-event-bg: #f0e8f7;
+    --tag-info-fg: #5a6862;
+    --tag-info-bg: #e8ebe9;
 
     --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
     --body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -36,6 +54,18 @@
       --nellie-wash: #2e2028;
       --urgent: #f0a878;
       --urgent-wash: #33231a;
+      --tag-bring-fg: #f0c391;
+      --tag-bring-bg: #34281c;
+      --tag-home-fg: #a8c2ee;
+      --tag-home-bg: #1d2635;
+      --tag-do-fg: #dda0bd;
+      --tag-do-bg: #2e2028;
+      --tag-time-fg: #8fd0cb;
+      --tag-time-bg: #16292a;
+      --tag-event-fg: #c9a6e0;
+      --tag-event-bg: #251d2e;
+      --tag-info-fg: #93a09a;
+      --tag-info-bg: #202826;
     }
   }
 
@@ -54,6 +84,18 @@
     --nellie-wash: #2e2028;
     --urgent: #f0a878;
     --urgent-wash: #33231a;
+    --tag-bring-fg: #f0c391;
+    --tag-bring-bg: #34281c;
+    --tag-home-fg: #a8c2ee;
+    --tag-home-bg: #1d2635;
+    --tag-do-fg: #dda0bd;
+    --tag-do-bg: #2e2028;
+    --tag-time-fg: #8fd0cb;
+    --tag-time-bg: #16292a;
+    --tag-event-fg: #c9a6e0;
+    --tag-event-bg: #251d2e;
+    --tag-info-fg: #93a09a;
+    --tag-info-bg: #202826;
   }
 
   * {
@@ -200,6 +242,33 @@
     outline-offset: 2px;
   }
 
+  /* Puff om det andra barnet: en väljare visar bara ett barn i taget, och det
+     andra barnets måndagsläxa får inte vara osynlig. */
+  .otherkid {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    align-self: flex-start;
+    min-height: 2.75rem;
+    padding: 0 0.6rem;
+    background: transparent;
+    border: 1px solid var(--line-firm);
+    border-radius: 4px;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+
+  .otherkid[hidden] {
+    display: none;
+  }
+
+  .otherkid:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   /* --- Barnpanel: en behållare för grupperna --- */
 
   [data-kid="colin"] {
@@ -235,7 +304,6 @@
 
   .group {
     background: var(--surface);
-    border: 1px solid var(--line);
     border-radius: 4px;
     padding: 0.55rem 0.7rem 0.65rem;
   }
@@ -246,21 +314,16 @@
 
   .glabel {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 500;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     color: var(--ink-mute);
     margin: 0 0 0.25rem;
   }
 
-  /* Veckan är sidans huvudsak, så dess rubrik bär barnets färg. */
-  .group[data-group="week"] > .glabel {
-    color: var(--accent);
-  }
-
   .empty {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     color: var(--ink-mute);
     margin: 0.1rem 0 0;
   }
@@ -279,7 +342,9 @@
 
   li {
     display: grid;
-    grid-template-columns: 1.2rem minmax(0, 1fr) auto;
+    /* Ingen ikonkolumn — titeln börjar längst till vänster. 8rem golv så att
+       etiketten och datumet inte kan strypa texten. */
+    grid-template-columns: minmax(8rem, 1fr) auto;
     gap: 0 0.45rem;
     padding: 0.32rem 0;
     align-items: baseline;
@@ -293,31 +358,24 @@
     border-top: 1px solid var(--line);
   }
 
-  .icon {
-    grid-column: 1;
-    font-size: 0.8rem;
-    line-height: 1.5;
-    text-align: center;
-    user-select: none;
-  }
-
   .what {
-    grid-column: 2;
+    grid-column: 1;
     font-weight: 500;
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 
   .meta {
-    grid-column: 3;
+    grid-column: 2;
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: baseline;
-    gap: 0.35rem;
-    white-space: nowrap;
+    gap: 0.2rem 0.35rem;
   }
 
   .note {
-    grid-column: 2 / -1;
+    grid-column: 1 / -1;
     font-size: 0.78rem;
     color: var(--ink-mute);
     margin: 0.05rem 0 0.1rem;
@@ -327,10 +385,48 @@
     font-family: var(--mono);
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
-    color: var(--accent);
-    background: var(--wash);
+    color: var(--ink-soft);
+    background: var(--surface-sunk);
     padding: 0.05rem 0.35rem;
     border-radius: 3px;
+  }
+
+  .tag-kind {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    color: var(--tag-info-fg);
+    background: var(--tag-info-bg);
+  }
+
+  .tag-kind[data-tag="bring"] {
+    color: var(--tag-bring-fg);
+    background: var(--tag-bring-bg);
+  }
+
+  .tag-kind[data-tag="home"] {
+    color: var(--tag-home-fg);
+    background: var(--tag-home-bg);
+  }
+
+  .tag-kind[data-tag="do"] {
+    color: var(--tag-do-fg);
+    background: var(--tag-do-bg);
+  }
+
+  .tag-kind[data-tag="time"] {
+    color: var(--tag-time-fg);
+    background: var(--tag-time-bg);
+  }
+
+  .tag-kind[data-tag="event"] {
+    color: var(--tag-event-fg);
+    background: var(--tag-event-bg);
   }
 
   .at {
@@ -353,17 +449,36 @@
     text-decoration: line-through;
   }
 
+  /* Långt bort behöver ingen relativ text — datumet räcker, och textkolumnen
+     behöver bredden mer. */
+  .rel[data-state="later"] {
+    display: none;
+  }
+
   /* --- Dagsrubrik i veckofacket --- */
 
   li.dayhead {
     display: block;
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-family: var(--display);
+    font-size: 0.88rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--ink);
-    padding: 0.55rem 0 0.1rem;
+    padding: 0.6rem 0 0.15rem;
     border-top: 0;
+  }
+
+  /* I dag och imorgon är hela poängen med sidan — de ska vara det enda som
+     skriker. Tidigare var "idag" typografiskt identiskt med "om 20 dagar". */
+  li.dayhead:has(.dayrel[data-state="today"]),
+  li.dayhead:has(.dayrel[data-state="tomorrow"]) {
+    color: var(--urgent);
+  }
+
+  .dayrel[data-state="today"],
+  .dayrel[data-state="tomorrow"] {
+    color: var(--urgent);
+    font-weight: 600;
   }
 
   li.dayhead:first-child {
@@ -377,7 +492,7 @@
 
   .dayrel {
     font-family: var(--body);
-    font-size: 0.7rem;
+    font-size: 0.78rem;
     font-weight: 400;
     letter-spacing: 0;
     text-transform: none;
@@ -401,7 +516,6 @@
 
   details.unclear {
     background: var(--surface);
-    border: 1px solid var(--line);
     border-radius: 4px;
     color: var(--ink-soft);
   }
@@ -410,7 +524,7 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    min-height: 2.5rem;
+    min-height: 2.75rem;
     cursor: pointer;
     list-style: none;
   }
@@ -458,7 +572,7 @@
   }
 
   details.unclear p {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     margin: 0.3rem 0;
   }
 
@@ -522,7 +636,6 @@
     }
 
     li {
-      grid-template-columns: 1.3rem minmax(0, 1fr) auto;
       padding: 0.36rem 0;
     }
   }
