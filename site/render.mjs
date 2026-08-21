@@ -589,8 +589,15 @@ ${table(strings.fi)}
           (a, b) =>
             (a.dataset.date || "").localeCompare(b.dataset.date || "") || rankOf(a) - rankOf(b),
         );
+        // Taket sätts HÄR, inte bara vid rendering: omgrupperingen kör vid varje
+        // visning och tog annars tillbaka precis det renderaren sorterat bort.
+        const WEEK_LIMIT = 4;
+        const infoList = groups.info && groups.info.querySelector("ul");
+        const shown = live.slice(0, WEEK_LIMIT);
+        if (infoList) for (const li of live.slice(WEEK_LIMIT)) infoList.append(li);
+
         let lastDate = null;
-        for (const li of live) {
+        for (const li of shown) {
           weekList.append(li);
           if (li.dataset.date !== lastDate) {
             lastDate = li.dataset.date;
@@ -628,8 +635,8 @@ ${table(strings.fi)}
           [...sharedBand.querySelectorAll("li")].some((li) => !li.hidden);
         const plain = groups.week.querySelector(".empty:not(.shared-hint)");
         const hint = groups.week.querySelector(".empty.shared-hint");
-        if (plain) plain.hidden = live.length > 0 || sharedLive;
-        if (hint) hint.hidden = live.length > 0 || !sharedLive;
+        if (plain) plain.hidden = shown.length > 0 || sharedLive;
+        if (hint) hint.hidden = shown.length > 0 || !sharedLive;
       }
 
       for (const name of ["booking", "later", "exams"]) {
