@@ -39,6 +39,45 @@ const TAGS = {
   info: { sv: "Info", fi: "Tieto", palette: "info" },
 };
 
+/**
+ * Två meddelanden om samma sak ger två poster med olika ordalydelse:
+ * "Skoldag kl. 8.15-12.00 måndag till onsdag" och "Skoldag kl. 8.15-12
+ * måndag-onsdag". Exakt textnyckel ser dem som skilda. Här jämförs innehållet.
+ */
+const words = (s) =>
+  new Set(
+    String(s)
+      .toLowerCase()
+      .replace(/[^\wåäöü\s.:-]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2),
+  );
+
+function nearDuplicate(a, b) {
+  if (a.kind !== b.kind || a.date !== b.date) return false;
+  const x = words(a.sv.text);
+  const y = words(b.sv.text);
+  if (x.size === 0 || y.size === 0) return false;
+  let shared = 0;
+  for (const w of x) if (y.has(w)) shared += 1;
+  // Jaccard över 0,5 betyder att raderna säger samma sak med andra ord.
+  return shared / (x.size + y.size - shared) > 0.5;
+}
+
+/** Behåll den senaste versionen av varje sak — högst messageId är nyast. */
+function dedupe(items) {
+  const kept = [];
+  for (const item of items) {
+    const clash = kept.findIndex((other) => nearDuplicate(other, item));
+    if (clash === -1) {
+      kept.push(item);
+      continue;
+    }
+    if ((item.messageId ?? 0) > (kept[clash].messageId ?? 0)) kept[clash] = item;
+  }
+  return kept;
+}
+
 /** Grupper med ett enda slag: rubriken säger vad raderna är. */
 const SINGLE_KIND_GROUPS = new Set(["exams", "booking"]);
 
@@ -108,8 +147,11 @@ function bucketOf(item) {
   if (item.date && item.date < TODAY) return "past";
   if (item.kind === "bokning") return "booking";
   if (!item.date) return "info";
+  // info hamnar alltid i dropdownen, även daterad: en upplysning är inte en
+  // uppgift, och de var halva sidans volym.
+  if (item.kind === "info") return "info";
   if (item.date <= WEEK_END) return "week";
-  return item.kind === "info" ? "info" : "later";
+  return "later";
 }
 
 // --- Poster --------------------------------------------------------------
@@ -194,12 +236,18 @@ function dayHeadMarkup(iso) {
   );
 }
 
+/** Tak på veckan: sidan finns för att vara kort. Resten hamnar i dropdownen. */
+const WEEK_LIMIT = 7;
+
 function childMarkup(child, first) {
   const buckets = { week: [], booking: [], later: [], exams: [], info: [] };
-  // Veckan sorteras redan här: utan JS fick man rådataordning (25.8 före 24.8).
-  const weekItems = child.items
+  const items = dedupe(child.items);
+
+  const weekAll = items
     .filter((item) => bucketOf(item) === "week")
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const weekItems = weekAll.slice(0, WEEK_LIMIT);
+  const overflow = weekAll.slice(WEEK_LIMIT);
   let lastDate = null;
   for (const item of weekItems) {
     if (item.date !== lastDate) {
@@ -209,11 +257,12 @@ function childMarkup(child, first) {
     buckets.week.push(itemMarkup(item));
   }
 
-  child.items.forEach((item) => {
+  items.forEach((item) => {
     const bucket = bucketOf(item);
     if (bucket === "past" || bucket === "week") return;
     buckets[bucket].push(itemMarkup(item));
   });
+  for (const item of overflow) buckets.info.push(itemMarkup(item));
   child.exams.forEach((exam) => buckets.exams.push(examItem(exam)));
 
   // hidden som standard: JS visar den som stämmer. Tvärtom gav två motsägande
