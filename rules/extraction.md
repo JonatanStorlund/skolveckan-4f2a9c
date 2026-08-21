@@ -14,9 +14,11 @@ RULES
 
 3. One item per concrete fact. Each 'text' is an imperative or a plain statement, at most 10 words, no filler: "Ta med ytterkläder", "Ingen skola", "Returnera tillståndslappen".
 
-4. Dates: resolve every relative reference ("på tisdag", "nästa vecka", "ensi maanantaina", "i slutet av månaden") to an absolute date in 'date' (YYYY-MM-DD), using the reference date the user message gives you. A weekday named without a date means the NEXT occurrence strictly after the reference date, unless the message clearly points further ahead or back. If a date genuinely cannot be determined, leave 'date' and 'date_label' empty — never guess a date.
+4. Dates: resolve every relative reference ("imorgon", "på tisdag", "nästa vecka", "inkommande vecka", "ensi maanantaina", "i slutet av månaden") to an absolute date in 'date' (YYYY-MM-DD), counting from **MESSAGE SENT** in the user message — never from TODAY. A message written on the 12th that says "imorgon" means the 13th, even if you are reading it on the 21st. A weekday named without a date means the NEXT occurrence strictly after the send date, unless the message clearly points further ahead or back. If a date genuinely cannot be determined, leave 'date' and 'date_label' empty — never guess a date.
 
-5. 'date_label' is short Swedish, day-month with no year: "tis 26.8". A range: "26.8-28.8". 'date_label_fi' is the Finnish form, which uses different weekday abbreviations and a trailing dot on the day: "ti 26.8.", range "26.8.-28.8.". Weekdays: ma, ti, ke, to, pe, la, su.
+4b. The school week is Monday to Friday. A resolved date that lands on a Saturday or Sunday is nearly always a misreading — count again from the send date. Keep a weekend date only when the message itself names a weekend day ("på lördag", "lauantaina") or an event that plainly falls on one; otherwise leave the date empty rather than pointing at a day with no school.
+
+5. 'date_label' is short Swedish, day-month with no year: "tis 26.8". A range: "26.8-28.8". 'date_label_fi' is the Finnish form, which uses different weekday abbreviations and a trailing dot on the day: "ti 26.8.", range "26.8.-28.8.". Swedish weekdays: mån, tis, ons, tor, fre, lör, sön. Finnish weekdays: ma, ti, ke, to, pe, la, su. Never put a Finnish abbreviation in the Swedish label or the other way round.
 
 6. 'time' only when the message gives clock times. Otherwise empty. It is not translated — "08:15-12:00" reads the same in both languages.
 
@@ -31,6 +33,7 @@ RULES
    - andrad_tid — changed schedule, times, place or transport
    - evenemang — event, trip, swimming, outing, photography, visit
    - betalning — money to pay
+   - laxa — homework for a specific day (reading, maths pages, something to finish at home)
    - info — must know, no action required
 
 9. Put stated amounts of money, required equipment and locations inside 'text' when the message gives them.

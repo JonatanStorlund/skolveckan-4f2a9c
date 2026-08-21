@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Klistra in ett Wilma-meddelande, få de faktiska ärendena på 3-5 rader.",
+  "description": "Klistra in ett Wilma-meddelande, f\u00e5 de faktiska \u00e4rendena p\u00e5 3-5 rader.",
   "scripts": {
     "start": "tsx src/server.ts",
     "dev": "tsx watch src/server.ts",
     "typecheck": "tsc --noEmit",
-    "try": "tsx src/try.ts"
+    "try": "tsx src/try.ts",
+    "test": "node tests/page.test.mjs",
+    "preview": "node site/render.mjs && node site/build.mjs && python3 -m http.server 4174 --directory dist"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -17,6 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "jsdom": "^29.1.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

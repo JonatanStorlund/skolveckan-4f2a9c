@@ -29,26 +29,50 @@ hoist(/<link\b[^>]*>/gi);
 hoist(/<style>[\s\S]*?<\/style>/i);
 
 const title = /<title>([^<]*)<\/title>/i.exec(source)?.[1] ?? "Skolveckan hemma";
+const css = /<style>([\s\S]*?)<\/style>/i.exec(source)?.[1] ?? "";
 
 // Språken bor i samma tabell just för att en text inte ska kunna glömmas bort på
 // det ena språket. Bygget vaktar det: nyckelmängderna måste vara identiska.
-const keysOf = (lang) => {
+const entriesOf = (lang) => {
   const start = source.indexOf(`      ${lang}: {`);
   const end = source.indexOf("\n      },", start);
   if (start === -1 || end === -1) throw new Error(`Hittade inte STRINGS.${lang}.`);
+  const found = new Map();
   // Nycklarna kan vara citerade (genererad tabell) eller inte (handskriven).
-  return new Set(
-    [...source.slice(start, end).matchAll(/^ {8}"?(\w+)"?\s*:/gm)].map((m) => m[1]),
-  );
+  for (const m of source.slice(start, end).matchAll(/^ {8}"?(\w+)"?\s*:\s*(.*)$/gm)) {
+    found.set(m[1], m[2].trim());
+  }
+  return found;
 };
-const sv = keysOf("sv");
-const fi = keysOf("fi");
+const sv = entriesOf("sv");
+const fi = entriesOf("fi");
+
+// Tom sträng på ena språket och text på det andra är inte paritet — det var en
+// verklig lucka: en not fanns på finska och lyste tom på svenska.
+const isEmpty = (value) => value === undefined || /^""\s*,?$/.test(value);
 const missing = [
-  ...[...sv].filter((k) => !fi.has(k)).map((k) => `fi saknar ${k}`),
-  ...[...fi].filter((k) => !sv.has(k)).map((k) => `sv saknar ${k}`),
+  ...[...sv.keys()].filter((k) => !fi.has(k)).map((k) => `fi saknar ${k}`),
+  ...[...fi.keys()].filter((k) => !sv.has(k)).map((k) => `sv saknar ${k}`),
+  ...[...sv.keys()]
+    .filter((k) => fi.has(k) && isEmpty(sv.get(k)) !== isEmpty(fi.get(k)))
+    .map((k) => `${k} är tom på ett språk men inte på det andra`),
 ];
 if (missing.length) {
   console.error(`Språken har glidit isär:\n  ${missing.join("\n  ")}`);
+  process.exit(1);
+}
+
+// En dubblerad selektor är tyst: den senare vinner och kastar layouten om.
+// Det var precis felet som satte datumchipet mellan ikonen och texten.
+const cssBlocks = [...css.matchAll(/^ {2}([^@\s][^{]*?)\s*\{/gm)].map((m) => m[1].trim());
+const seen = new Map();
+const duplicates = [];
+for (const selector of cssBlocks) {
+  if (seen.has(selector)) duplicates.push(selector);
+  else seen.set(selector, true);
+}
+if (duplicates.length) {
+  console.error(`Dubblerade CSS-selektorer:\n  ${[...new Set(duplicates)].join("\n  ")}`);
   process.exit(1);
 }
 

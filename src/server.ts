@@ -77,7 +77,9 @@ const server = createServer(async (req, res) => {
       }
 
       const started = Date.now();
-      const result = await extract(message);
+      // Klistrad text bär inget avsändningsdatum — i dag är den bästa referensen.
+      const now = new Date();
+      const result = await extract(message, { sentAt: now, now });
       console.log(`tldr: ${result.items.length} ärenden, ${Date.now() - started} ms`);
       json(res, 200, result);
       return;

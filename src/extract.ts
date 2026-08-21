@@ -10,6 +10,7 @@ export const ItemKind = z.enum([
   "andrad_tid",
   "evenemang",
   "betalning",
+  "laxa",
   "info",
 ]);
 
@@ -41,8 +42,19 @@ export const TldrSchema = z.object({
 });
 
 export type Tldr = z.infer<typeof TldrSchema>;
+export type Item = z.infer<typeof ItemSchema>;
 
-const MODEL = "claude-opus-5";
+/**
+ * Extrahering mot ett strikt schema är precis vad en liten modell är bra på, så
+ * arbetsmodellen är den billigaste. Kvaliteten hålls uppe av valideringen nedan,
+ * inte av prislappen: faller ett svar körs just det meddelandet om en gång på
+ * räddningsmodellen.
+ */
+const WORK_MODEL = "claude-haiku-4-5";
+const RESCUE_MODEL = "claude-sonnet-5";
+
+/** Haiku 4.5 känner inte `output_config.effort` och svarar 400 om det skickas. */
+const supportsEffort = (model: string): boolean => !model.startsWith("claude-haiku");
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -52,30 +64,115 @@ function getClient(): Anthropic {
 
 export class MissingKeyError extends Error {}
 
-export async function extract(
-  message: string,
-  now = new Date(),
-  household: string[] = [],
-): Promise<Tldr> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new MissingKeyError(
-      "ANTHROPIC_API_KEY saknas. Lägg den i .env eller exportera den innan du startar servern.",
-    );
+export interface ExtractOptions {
+  /** När meddelandet skickades — referens för alla relativa uttryck. */
+  sentAt: Date;
+  /** Nu, bara för att bedöma vad som hunnit passera. */
+  now?: Date;
+  household?: string[];
+}
+
+export interface Usage {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  /** Uppskattning i US-dollar, för att kunna se kostnaden i loggen. */
+  costUsd: number;
+}
+
+/** $ per miljon tokens (in/ut), för loggens skattning. */
+const PRICES: Record<string, { in: number; out: number }> = {
+  "claude-haiku-4-5": { in: 1, out: 5 },
+  "claude-sonnet-5": { in: 3, out: 15 },
+};
+
+/** Ett ställe, så validering och helgvakt inte kan vara oense. */
+export const WEEKEND_WORDS = /lördag|söndag|lauantai|sunnuntai|helg|viikonlopp|weekend/i;
+
+const normalise = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Fel som är värda att köra om på en starkare modell. Allt som kan lagas i kod
+ * lagas i kod i stället — en omkörning kostar pengar.
+ */
+interface Violation {
+  /** Index i result.items, eller -1 för fel som inte hör till en post. */
+  index: number;
+  problem: string;
+}
+
+function violations(result: Tldr, source: string): Violation[] {
+  const problems: Violation[] = [];
+  const haystack = normalise(source);
+
+  result.items.forEach((item, index) => {
+    const label = item.text || item.text_fi || "(namnlös)";
+    const add = (problem: string) => problems.push({ index, problem: `"${label}": ${problem}` });
+
+    if (!item.text.trim() || !item.text_fi.trim()) {
+      add("saknar text på båda språken");
+    }
+    // Noter och datumetiketter måste också finnas på båda språken eller inget
+    // av dem — annars ser en finsk läsare en rad som en svensk saknar.
+    for (const [sv, fi, what] of [
+      [item.note, item.note_fi, "not"],
+      [item.date_label, item.date_label_fi, "datumetikett"],
+    ] as const) {
+      if (Boolean(sv.trim()) !== Boolean(fi.trim())) add(`${what} finns bara på ett språk`);
+    }
+    if (item.date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date) || Number.isNaN(Date.parse(item.date))) {
+        add(`ogiltigt datum "${item.date}"`);
+      } else {
+        const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
+        const namesWeekend = WEEKEND_WORDS.test(item.quote) || WEEKEND_WORDS.test(item.text);
+        if ((weekday === 0 || weekday === 6) && !namesWeekend) {
+          add(`${item.date} är en helgdag men inget nämner helgen`);
+        }
+      }
+    }
+    // Citatet ska gå att hitta i källan. Fångar påhitt billigare än någon modell.
+    const quote = normalise(item.quote);
+    if (quote.length > 8 && !haystack.includes(quote)) {
+      add("citatet finns inte i källtexten");
+    }
+  });
+
+  for (const line of result.uncertain) {
+    if (!line.sv.trim() || !line.fi.trim()) {
+      problems.push({ index: -1, problem: "oklarhet saknar ett av språken" });
+    }
   }
 
+  return problems;
+}
+
+async function callModel(
+  model: string,
+  message: string,
+  options: ExtractOptions,
+): Promise<{ result: Tldr; usage: Usage }> {
+  const { sentAt, now = new Date(), household = [] } = options;
+
   const response = await getClient().messages.parse({
-    model: MODEL,
+    model,
     max_tokens: 8000,
     output_config: {
-      effort: "high",
+      // Effort finns inte på Haiku; skickas det svarar API:et 400.
+      // Räddningen körs bara när valideringen fallit, så den ska tänka ordentligt.
+      ...(supportsEffort(model) ? { effort: "high" as const } : {}),
       format: zodOutputFormat(TldrSchema),
     },
-    // Stabil prefix först (cachas), volatilt referensdatum sist.
+    // Stabil prefix först, volatila datum sist. Obs: Haiku 4.5 cachar först från
+    // 4096 tokens och reglerna är kortare än så, så brytpunkten är verkningslös
+    // på arbetsmodellen. Den står kvar för räddningsmodellen och för dagen då
+    // reglerna växer.
     system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     messages: [
       {
         role: "user",
-        content: `${referenceBlock(now)}${
+        content: `${referenceBlock(sentAt, now)}${
           household.length
             ? `\n\nHOUSEHOLD FACTS (treat as true; drop lines these rule out):\n${household
                 .map((fact) => `- ${fact}`)
@@ -94,18 +191,106 @@ ${message}
   if (response.stop_reason === "refusal") {
     throw new Error("Modellen avbröt förfrågan (refusal). Meddelandet kunde inte behandlas.");
   }
-
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(`Svaret klipptes av max_tokens (${model}) — meddelandet är för långt.`);
+  }
   const parsed = response.parsed_output;
   if (!parsed) throw new Error("Kunde inte tolka svaret från modellen.");
 
-  // Sortering är en presentationsregel — genomdriv den i kod istället för att
-  // lita på att modellen håller den.
-  const items = [...parsed.items].sort((a, b) => {
+  const price = PRICES[model] ?? { in: 0, out: 0 };
+  const inputTokens = response.usage.input_tokens ?? 0;
+  const outputTokens = response.usage.output_tokens ?? 0;
+  const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
+  const cacheWriteTokens = response.usage.cache_creation_input_tokens ?? 0;
+
+  return {
+    result: parsed,
+    usage: {
+      model,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      // Cacheskrivning kostar 1.25x, läsning 0.1x — annars stämmer inte siffran.
+      costUsd:
+        (inputTokens * price.in +
+          cacheWriteTokens * price.in * 1.25 +
+          cacheReadTokens * price.in * 0.1 +
+          outputTokens * price.out) /
+        1_000_000,
+    },
+  };
+}
+
+export interface ExtractResult extends Tldr {
+  usage: Usage[];
+  /** Poster som föll på valideringen även efter omkörning, och därför släpptes. */
+  dropped: string[];
+}
+
+export async function extract(message: string, options: ExtractOptions): Promise<ExtractResult> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new MissingKeyError(
+      "ANTHROPIC_API_KEY saknas. Lägg den i .env eller exportera den innan du kör.",
+    );
+  }
+
+  const usage: Usage[] = [];
+  let { result, usage: first } = await callModel(WORK_MODEL, message, options);
+  usage.push(first);
+
+  let problems = violations(result, message);
+  if (problems.length) {
+    console.warn(
+      `  ${WORK_MODEL} gav ${problems.length} problem, kör om på ${RESCUE_MODEL}:\n` +
+        problems.map((p) => `    - ${p.problem}`).join("\n"),
+    );
+    const rescue = await callModel(RESCUE_MODEL, message, options);
+    usage.push(rescue.usage);
+    result = rescue.result;
+    problems = violations(result, message);
+  }
+
+  // Kvarstående problem släpps per index — texten går inte att matcha på, den
+  // kan innehålla citattecken och två poster kan ha samma lydelse.
+  const dropped: string[] = [];
+  if (problems.length) {
+    const badIndexes = new Set(problems.map((p) => p.index).filter((i) => i >= 0));
+    result = {
+      ...result,
+      items: result.items.filter((item, index) => {
+        if (!badIndexes.has(index)) return true;
+        dropped.push(item.text || item.text_fi || `post ${index}`);
+        return false;
+      }),
+      uncertain: result.uncertain.filter((line) => line.sv.trim() && line.fi.trim()),
+    };
+  }
+
+  // Sortering är en presentationsregel — genomdriv den i kod.
+  const items = [...result.items].sort((a, b) => {
     if (a.date && b.date) return a.date.localeCompare(b.date);
     if (a.date) return -1;
     if (b.date) return 1;
     return 0;
   });
 
-  return { ...parsed, items };
+  return { ...result, items, usage, dropped };
+}
+
+/** Sammanfattar en körnings kostnad för loggen. */
+export function summariseUsage(all: Usage[]): string {
+  const total = all.reduce(
+    (sum, u) => ({
+      input: sum.input + u.inputTokens,
+      output: sum.output + u.outputTokens,
+      cached: sum.cached + u.cacheReadTokens,
+      cost: sum.cost + u.costUsd,
+    }),
+    { input: 0, output: 0, cached: 0, cost: 0 },
+  );
+  const models = [...new Set(all.map((u) => u.model))].join(", ") || "inga anrop";
+  return (
+    `${all.length} modellanrop (${models}) — ${total.input} in, ${total.output} ut, ` +
+    `${total.cached} ur cachen, ca $${total.cost.toFixed(4)}`
+  );
 }

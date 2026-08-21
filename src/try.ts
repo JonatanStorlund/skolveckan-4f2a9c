@@ -2,11 +2,12 @@
  * Rökprov från terminalen: `npx tsx src/try.ts fixtures/exempel-host.txt`
  */
 import { readFile } from "node:fs/promises";
-import { extract } from "./extract.js";
+import { extract, summariseUsage } from "./extract.js";
 
 const file = process.argv[2] ?? "fixtures/exempel-host.txt";
 const message = await readFile(file, "utf8");
-const result = await extract(message);
+const now = new Date();
+const result = await extract(message, { sentAt: now, now });
 
 console.log(`\n${result.subject || "(inget ämne)"}  [in: ${result.language_in}]\n`);
 for (const item of result.items) {
@@ -20,4 +21,6 @@ if (result.uncertain.length) {
   console.log("\nOklart:");
   for (const line of result.uncertain) console.log(`  ? ${line.sv}  /  ${line.fi}`);
 }
+console.log(`\n${summariseUsage(result.usage)}`);
+if (result.dropped.length) console.log(`släppta: ${result.dropped.join("; ")}`);
 console.log();

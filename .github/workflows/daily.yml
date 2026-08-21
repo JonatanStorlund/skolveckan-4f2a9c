@@ -19,6 +19,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Utan tak kan en hängd begäran hålla jobbet i sex timmar och köa nästa dygn.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +44,7 @@ jobs:
       - name: Hämta ur Wilma och extrahera nytt
         env:
           WILMA_BASE_URL: https://jakobstad.inschool.fi
-          WILMA_USERNAME: storlundjonatan@gmail.com
+          WILMA_USERNAME: ${{ secrets.WILMA_USERNAME }}
           WILMA_PASSWORD: ${{ secrets.WILMA_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npx tsx src/daily.ts

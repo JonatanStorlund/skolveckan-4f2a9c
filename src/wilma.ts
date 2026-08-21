@@ -46,6 +46,13 @@ export interface Exam {
   teachers: string[];
 }
 
+export interface Notice {
+  id: number;
+  title: string;
+  /** ISO-datum, eller tom sträng när anslaget saknar dagsuppgift. */
+  date: string;
+}
+
 export class WilmaError extends Error {}
 export class WilmaAuthError extends WilmaError {}
 export class WilmaMfaError extends WilmaAuthError {}
@@ -86,6 +93,9 @@ export class Wilma {
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...init,
       redirect: "manual",
+      // Node:s fetch har ingen standardtidsgräns; en hängd begäran skulle annars
+      // låsa hela körningen till jobbets sextimmarstak.
+      signal: AbortSignal.timeout(30_000),
       headers: {
         "User-Agent": "wilma-tldr/1.0",
         Accept: "application/json, text/html",
@@ -249,6 +259,55 @@ export class Wilma {
   }
 
   /**
+   * Anslagstavlan ("Tiedotteet").
+   *
+   * Två sorters anslag ligger där: dagsaktuella i huvudspalten, och permanenta i
+   * sidospalten — blanketter, instruktioner, kontaktuppgifter från 2020 och
+   * framåt. Bara huvudspalten läses; de permanenta är referensmaterial och skulle
+   * bara kosta tokens.
+   */
+  async notices(prefix: string): Promise<Notice[]> {
+    const response = await this.authed(`${prefix}/news`);
+    if (!response.ok) throw new WilmaError(`Anslagstavlan gav ${response.status}.`);
+    const html = await response.text();
+
+    // Huvudspalten börjar vid den breda kolumnen; sidospalten med de permanenta
+    // anslagen ligger före den.
+    const mainStart = html.search(/<div class="col-lg-8[^"]*"/);
+    const scope = mainStart === -1 ? html : html.slice(mainStart);
+
+    const found: Notice[] = [];
+    let currentDate = "";
+    // Datumrubrik och anslag kommer växelvis: <h2>16.8.</h2> sedan <h3>titel</h3>.
+    const pattern =
+      /<h2[^>]*>\s*(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*<\/h2>|<h3>\s*([\s\S]*?)\s*<\/h3>[\s\S]{0,400}?href="[^"]*\/news\/(\d+)"/g;
+
+    for (const m of scope.matchAll(pattern)) {
+      if (m[1]) {
+        currentDate = isoFrom(Number(m[1]), Number(m[2]), m[3] ? Number(m[3]) : null);
+        continue;
+      }
+      const title = stripTags(m[4] ?? "").replace(/\s+/g, " ").trim();
+      const id = Number(m[5]);
+      if (title && Number.isFinite(id)) found.push({ id, title, date: currentDate });
+    }
+    return found;
+  }
+
+  /** Texten i ett anslag. Samma layout som ett meddelande. */
+  async readNotice(prefix: string, id: number): Promise<{ title: string; text: string; links: string[] }> {
+    const response = await this.authed(`${prefix}/news/${id}`);
+    if (!response.ok) throw new WilmaError(`Anslag ${id} gav ${response.status}.`);
+    const html = await response.text();
+    const title = /<title>([^<]*)<\/title>/i.exec(html)?.[1]?.replace(/\s*-\s*Wilma\s*$/i, "").trim();
+    return {
+      title: decodeEntities(title ?? ""),
+      text: extractBody(html),
+      links: extractLinks(html),
+    };
+  }
+
+  /**
    * Elevfoto. Odokumenterad endpoint som ger en liten JPEG per roll.
    * Saknas fotot svarar Wilma inte med en bild — då returneras null.
    */
@@ -327,6 +386,22 @@ export class Wilma {
 }
 
 // --- HTML-hjälpare ---------------------------------------------------------
+
+/**
+ * Anslagen skriver "16.8." utan år. Året är innevarande, utom när det skulle
+ * hamna långt i framtiden — då är anslaget från förra året.
+ */
+function isoFrom(day: number, month: number, year: number | null): string {
+  const now = new Date();
+  let resolved = year ?? now.getUTCFullYear();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  let iso = `${resolved}-${pad(month)}-${pad(day)}`;
+  if (!year && Date.parse(`${iso}T00:00:00Z`) - now.getTime() > 30 * 86400000) {
+    resolved -= 1;
+    iso = `${resolved}-${pad(month)}-${pad(day)}`;
+  }
+  return Number.isNaN(Date.parse(`${iso}T00:00:00Z`)) ? "" : iso;
+}
 
 function decodeEntities(text: string): string {
   const named: Record<string, string> = {

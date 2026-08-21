@@ -12,7 +12,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { Wilma, type Child, type Exam } from "./wilma.js";
-import { extract } from "./extract.js";
+import { extract, summariseUsage, WEEKEND_WORDS, type Usage } from "./extract.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, "..");
@@ -21,15 +21,17 @@ const photoDir = path.join(root, "site", "photos");
 const householdPath = path.join(root, "config", "household.json");
 
 /** Hur långt bak vi bryr oss. Äldre meddelanden extraheras aldrig. */
-const LOOKBACK_DAYS = 30;
+const LOOKBACK_DAYS = 14;
 /** Tak per körning, så en första körning inte extraherar hundratals meddelanden. */
 const MAX_NEW_PER_RUN = 12;
 /** Hur länge en odaterad post får leva innan den städas bort. */
 const UNDATED_TTL_DAYS = 21;
 /** Hur många meddelanden per barn vi tittar på. */
 const INBOX_LIMIT = 25;
+/** Tak på anslag per körning. Anslagstavlan är mest permanent referensmaterial. */
+const MAX_NOTICES_PER_RUN = 3;
 /** Tak på hämtad dokumenttext, så ett långt dokument inte sväller prompten. */
-const DOC_CHARS = 8000;
+const DOC_CHARS = 4000;
 
 export interface Localized {
   text: string;
@@ -72,6 +74,8 @@ export interface State {
   stamp: string;
   messageCount: number;
   seen: number[];
+  /** Lästa anslag. Egen lista: anslags-id kan kollidera med meddelande-id. */
+  seenNotices?: number[];
   shared: Item[];
   sharedUncertain: Unclear[];
   children: ChildBlock[];
@@ -86,6 +90,11 @@ const slugOf = (child: Child): string =>
 function daysBetween(fromIso: string, toIso: string): number {
   const a = Date.parse(`${fromIso}T00:00:00Z`);
   const b = Date.parse(`${toIso}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) {
+    // Tyst NaN gjorde att allt filtrerades bort och sidan stämplades om som
+    // färsk fast ingenting lästs. Hellre ett högt fel.
+    throw new Error(`Kan inte räkna dagar mellan "${fromIso}" och "${toIso}".`);
+  }
   return Math.round((b - a) / 86400000);
 }
 
@@ -137,11 +146,14 @@ async function followDocs(links: string[]): Promise<string> {
     try {
       const response = await fetch(`https://docs.google.com/document/d/${id}/export?format=txt`, {
         redirect: "follow",
+        signal: AbortSignal.timeout(20_000),
       });
       if (!response.ok) {
         console.warn(`  dokument ${id} gav ${response.status} — hoppar över.`);
         continue;
       }
+      // Ingen smart trimning: förra försöket klippte bort just läxorna.
+      // 4000 tecken Haiku-indata kostar under en tiondels cent.
       const text = (await response.text()).slice(0, DOC_CHARS).trim();
       if (text) parts.push(`\n\n--- Länkat dokument (${link}) ---\n${text}`);
     } catch (error) {
@@ -151,8 +163,14 @@ async function followDocs(links: string[]): Promise<string> {
   return parts.join("");
 }
 
-/** "2026-08-21 11:11" -> "2026-08-21" */
-const dayOf = (timestamp: string): string => (timestamp.split(" ")[0] ?? "").trim();
+/** "2026-08-21 11:11" -> "2026-08-21". Kastar om Wilma byter format. */
+function dayOf(timestamp: string): string {
+  const day = (timestamp.split(" ")[0] ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    throw new Error(`Oväntat tidsformat från Wilma: "${timestamp}".`);
+  }
+  return day;
+}
 
 async function main(): Promise<void> {
   const baseUrl = process.env.WILMA_BASE_URL;
@@ -161,12 +179,24 @@ async function main(): Promise<void> {
   if (!baseUrl || !username || !password) {
     throw new Error("WILMA_BASE_URL, WILMA_USERNAME och WILMA_PASSWORD måste vara satta.");
   }
+  // Kontrolleras här, inte vid första extraheringen: annars loggar vi in, hämtar
+  // två inkorgar, provkalendrar och foton och faller först då.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY måste vara satt.");
+  }
 
   const now = new Date();
   const today = isoToday(now);
   const previous = await loadState();
   const household = await loadHousehold();
   const seen = new Set(previous?.seen ?? []);
+  // Ett meddelande som gett en post är läst, även om seen-listan tappat det.
+  for (const item of [
+    ...(previous?.shared ?? []),
+    ...(previous?.children ?? []).flatMap((c) => c.items),
+  ]) {
+    if (typeof item.messageId === "number") seen.add(item.messageId);
+  }
 
   const wilma = new Wilma(baseUrl, username, password);
   const children = await wilma.children();
@@ -218,57 +248,145 @@ async function main(): Promise<void> {
   console.log(`${toExtract.length} meddelanden att extrahera, ${seen.size} redan sedda.`);
 
   // Steg 4: extrahera. Enda steget som kostar något.
+  const usage: Usage[] = [];
+  const failures: string[] = [];
   const freshItems = new Map<string, Item[]>();  // nyckel: prefix eller "shared"
   const freshUnclear = new Map<string, Unclear[]>();
   const push = <T>(map: Map<string, T[]>, key: string, values: T[]) =>
     map.set(key, [...(map.get(key) ?? []), ...values]);
 
   for (const { id, prefix, message } of toExtract) {
-    const body = await wilma.read(prefix, id);
-    if (!body.text.trim()) {
-      console.warn(`Meddelande ${id} ("${message.subject}") hade ingen text — hoppar över.`);
+    try {
+      const body = await wilma.read(prefix, id);
+      if (!body.text.trim()) {
+        console.warn(`Meddelande ${id} ("${message.subject}") hade ingen text — hoppar över.`);
+        seen.add(id);
+        continue;
+      }
+
+      const attached = await followDocs(body.links);
+      if (attached) console.log(`  [${id}] följde ${body.links.length} länk(ar) till dokument`);
+
+      const recipients = owners.get(id) ?? [];
+      const target = recipients.length > 1 ? "shared" : prefix;
+      // Ett meddelande till flera barn får allas fakta; då kan modellen stryka
+      // det som inte gäller något av dem.
+      const facts = children
+        .filter((child) => recipients.includes(child.prefix))
+        .flatMap((child) => {
+          const slug = slugOf(child);
+          return (household[slug] ?? []).map((fact) => `${child.name.split(/\s+/)[0]}: ${fact}`);
+        });
+
+      const sentAt = new Date(`${dayOf(message.timestamp)}T12:00:00+03:00`);
+      const result = await extract(body.text + attached, { sentAt, now, household: facts });
+      usage.push(...result.usage);
+      if (result.dropped.length) {
+        console.warn(`  [${id}] släppte ${result.dropped.length} post(er): ${result.dropped.join("; ")}`);
+      }
+
+      push(
+        freshItems,
+        target,
+        result.items.map((item) => ({
+          kind: item.kind,
+          date: item.date,
+          time: item.time,
+          sv: { text: item.text, note: item.note, dateLabel: item.date_label },
+          fi: { text: item.text_fi, note: item.note_fi, dateLabel: item.date_label_fi },
+          quote: item.quote,
+          messageId: id,
+          addedOn: today,
+        })),
+      );
+      push(
+        freshUnclear,
+        target,
+        result.uncertain.map((u) => ({ sv: u.sv, fi: u.fi, messageId: id, addedOn: today })),
+      );
+
       seen.add(id);
+      console.log(`  [${id}] ${message.subject} → ${result.items.length} poster (${target})`);
+    } catch (error) {
+      // Meddelandet läggs medvetet INTE i seen: nästa körning får försöka igen.
+      // Men de som redan lyckats ska inte kastas bort med det.
+      failures.push(`[${id}] ${message.subject}: ${error instanceof Error ? error.message : error}`);
+      console.error(`  [${id}] FEL, hoppar över: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
+  // Anslagstavlan. Mest permanenta blanketter och instruktioner, så bara
+  // dagsaktuella anslag läses — resten skulle kosta tokens utan att säga något.
+  const seenNotices = new Set(previous?.seenNotices ?? []);
+  for (const child of children) {
+    let read = 0;
+    let notices: Awaited<ReturnType<Wilma["notices"]>> = [];
+    try {
+      notices = await wilma.notices(child.prefix);
+    } catch (error) {
+      console.warn(`  anslagstavlan för ${child.name}: ${error instanceof Error ? error.message : error}`);
       continue;
     }
 
-    const attached = await followDocs(body.links);
-    if (attached) console.log(`  [${id}] följde ${body.links.length} länk(ar) till dokument`);
+    for (const notice of notices) {
+      if (read >= MAX_NOTICES_PER_RUN) break;
+      if (!notice.date || seenNotices.has(notice.id)) continue;
+      if (daysBetween(notice.date, today) > LOOKBACK_DAYS) continue;
 
-    const recipients = owners.get(id) ?? [];
-    const target = recipients.length > 1 ? "shared" : prefix;
-    // Ett meddelande till flera barn får allas fakta; då kan modellen stryka
-    // det som inte gäller något av dem.
-    const facts = children
-      .filter((child) => recipients.includes(child.prefix))
-      .flatMap((child) => {
-        const slug = slugOf(child);
-        return (household[slug] ?? []).map((fact) => `${child.name.split(/\s+/)[0]}: ${fact}`);
-      });
+      try {
+        const body = await wilma.readNotice(child.prefix, notice.id);
+        if (!body.text.trim()) {
+          seenNotices.add(notice.id);
+          continue;
+        }
+        const attached = await followDocs(body.links);
+        const sentAt = new Date(`${notice.date}T12:00:00+03:00`);
+        const facts = (household[slugOf(child)] ?? []).map(
+          (fact) => `${child.name.split(/\s+/)[0]}: ${fact}`,
+        );
+        const result = await extract(
+          `Anslag på skolans anslagstavla: ${notice.title}\n\n${body.text}${attached}`,
+          { sentAt, now, household: facts },
+        );
+        usage.push(...result.usage);
+        push(
+          freshItems,
+          child.prefix,
+          result.items.map((item) => ({
+            kind: item.kind,
+            date: item.date,
+            time: item.time,
+            sv: { text: item.text, note: item.note, dateLabel: item.date_label },
+            fi: { text: item.text_fi, note: item.note_fi, dateLabel: item.date_label_fi },
+            quote: item.quote,
+            // Negativt id skiljer anslag från meddelanden i sammanslagningen.
+            messageId: -notice.id,
+            addedOn: today,
+          })),
+        );
+        seenNotices.add(notice.id);
+        read += 1;
+        console.log(
+          `  anslag [${notice.id}] ${notice.title.slice(0, 50)} → ${result.items.length} poster (${child.name})`,
+        );
+      } catch (error) {
+        failures.push(`anslag [${notice.id}]: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+  }
 
-    const result = await extract(body.text + attached, now, facts);
-
-    push(
-      freshItems,
-      target,
-      result.items.map((item) => ({
-        kind: item.kind,
-        date: item.date,
-        time: item.time,
-        sv: { text: item.text, note: item.note, dateLabel: item.date_label },
-        fi: { text: item.text_fi, note: item.note_fi, dateLabel: item.date_label_fi },
-        quote: item.quote,
-        messageId: id,
-        addedOn: today,
-      })),
-    );
-    push(
-      freshUnclear,
-      target,
-      result.uncertain.map((u) => ({ sv: u.sv, fi: u.fi, messageId: id, addedOn: today })),
-    );
-
-    seen.add(id);
-    console.log(`  [${id}] ${message.subject} → ${result.items.length} poster (${target})`);
+  // Helgvakt: skolan har inte lektioner på lördag eller söndag, så ett datum
+  // som landar där är en feltolkning. Datumet tas bort, posten behålls odaterad.
+  for (const list of freshItems.values()) {
+    for (const item of list) {
+      if (!item.date) continue;
+      const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
+      if ((weekday !== 0 && weekday !== 6) || WEEKEND_WORDS.test(item.quote)) continue;
+      console.warn(`  helgdatum ${item.date} på "${item.sv.text}" — datumet tas bort`);
+      item.date = "";
+      item.sv.dateLabel = "";
+      item.fi.dateLabel = "";
+    }
   }
 
   // Steg 5: slå ihop gammalt och nytt, städa det förbrukade.
@@ -298,6 +416,7 @@ async function main(): Promise<void> {
     stamp: today,
     messageCount: [...owners.keys()].length,
     seen: [...seen].sort((a, b) => a - b),
+    seenNotices: [...seenNotices].sort((a, b) => a - b),
     shared: merge(previous?.shared ?? [], freshItems.get("shared") ?? []),
     sharedUncertain: mergeUnclear(previous?.sharedUncertain ?? [], freshUnclear.get("shared") ?? []),
     children: children.map((child) => {
@@ -323,6 +442,15 @@ async function main(): Promise<void> {
     `data/oversikt.json — ${state.children.length} barn, ${total} poster, ` +
       `${state.children.reduce((s, c) => s + c.exams.length, 0)} prov, stamp ${state.stamp}`,
   );
+  console.log(summariseUsage(usage));
+  if (failures.length) {
+    console.error(`\n${failures.length} meddelande(n) kunde inte läsas:\n  ${failures.join("\n  ")}`);
+    // Föll varje enskilt försök är något systematiskt fel — då ska jobbet falla
+    // så att gårdagens sida står kvar och mejlet kommer.
+    if (failures.length === toExtract.length && toExtract.length > 0) {
+      throw new Error("Samtliga extraheringar föll — publicerar inget.");
+    }
+  }
 }
 
 await main();

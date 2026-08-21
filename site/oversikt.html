@@ -14,16 +14,15 @@
     --surface-sunk: #e2e7e4;
     --ink: #16211f;
     --ink-soft: #47554f;
-    --ink-mute: #6f7d76;
+    --ink-mute: #61706a;
     --line: #d2dad6;
     --line-firm: #b9c4bf;
-    --colin: #2f6f7a;
+    --colin: #26606b;
     --colin-wash: #e4eef0;
-    --nellie: #8a4b6b;
+    --nellie: #7c3f5e;
     --nellie-wash: #f2e7ed;
-    --urgent: #a9491a;
+    --urgent: #9d4318;
     --urgent-wash: #f8e8de;
-    --done: #5c7a63;
 
     --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
     --body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -37,16 +36,15 @@
       --surface-sunk: #141d1a;
       --ink: #e6ebe8;
       --ink-soft: #b3c0ba;
-      --ink-mute: #8a9791;
+      --ink-mute: #93a09a;
       --line: #2a3632;
       --line-firm: #3d4b46;
-      --colin: #7dc0cb;
+      --colin: #8ecbd6;
       --colin-wash: #1c2e31;
-      --nellie: #d193b0;
+      --nellie: #dda0bd;
       --nellie-wash: #2e2028;
-      --urgent: #e59a6d;
+      --urgent: #f0a878;
       --urgent-wash: #33231a;
-      --done: #8fae95;
     }
   }
 
@@ -56,16 +54,15 @@
     --surface-sunk: #141d1a;
     --ink: #e6ebe8;
     --ink-soft: #b3c0ba;
-    --ink-mute: #8a9791;
+    --ink-mute: #93a09a;
     --line: #2a3632;
     --line-firm: #3d4b46;
-    --colin: #7dc0cb;
+    --colin: #8ecbd6;
     --colin-wash: #1c2e31;
-    --nellie: #d193b0;
+    --nellie: #dda0bd;
     --nellie-wash: #2e2028;
-    --urgent: #e59a6d;
+    --urgent: #f0a878;
     --urgent-wash: #33231a;
-    --done: #8fae95;
   }
 
   * {
@@ -74,21 +71,30 @@
 
   body {
     margin: 0;
-    padding: 1rem 0.85rem 3rem;
+    padding: 0.85rem 0.75rem 2.5rem;
     background: var(--ground);
     color: var(--ink);
     font-family: var(--body);
-    font-size: 1rem;
-    line-height: 1.5;
+    font-size: 0.95rem;
+    line-height: 1.4;
     -webkit-font-smoothing: antialiased;
   }
 
   .board {
-    max-width: 60rem;
+    max-width: 44rem;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.7rem;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   /* --- Sidhuvud --- */
@@ -102,28 +108,28 @@
 
   .eyebrow {
     font-family: var(--mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--ink-mute);
     margin: 0;
   }
 
-  /* --- Språkväljare --- */
-
   .lang {
     flex: none;
     display: flex;
     border: 1px solid var(--line-firm);
-    border-radius: 3px;
+    border-radius: 4px;
     overflow: hidden;
   }
 
+  /* 44 px höga träffytor — sidan används med tummen. */
   .lang button {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     letter-spacing: 0.06em;
-    padding: 0.3rem 0.55rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
     border: 0;
     background: var(--surface);
     color: var(--ink-mute);
@@ -141,38 +147,18 @@
 
   .lang button:focus-visible {
     outline: 2px solid var(--colin);
-    outline-offset: -2px;
+    outline-offset: -3px;
   }
 
-  /* --- Gemensamt-bandet --- */
+  /* --- Åldersvarning: en död körning ska ange sig själv --- */
 
-  .shared {
+  .stale {
     background: var(--urgent-wash);
     border: 1px solid var(--urgent);
-    border-radius: 3px;
-    padding: 0.75rem 0.9rem;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.4rem 1rem;
-  }
-
-  .shared .tag {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
+    border-radius: 4px;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.85rem;
     color: var(--urgent);
-    flex: none;
-    width: 100%;
-    margin: 0;
-  }
-
-  .shared .headline {
-    font-family: var(--display);
-    font-weight: 600;
-    font-size: 1.1rem;
-    letter-spacing: -0.01em;
     margin: 0;
   }
 
@@ -185,8 +171,8 @@
   }
 
   .face {
-    width: 2.4rem;
-    height: 2.4rem;
+    width: 2.5rem;
+    height: 2.5rem;
     flex: none;
     border-radius: 50%;
     object-fit: cover;
@@ -198,16 +184,17 @@
   .picker select {
     flex: 1 1 auto;
     min-width: 0;
+    min-height: 2.75rem;
     appearance: none;
     font-family: var(--display);
     font-weight: 600;
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     letter-spacing: -0.01em;
     color: var(--accent);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 3px;
-    padding: 0.45rem 2rem 0.45rem 0.7rem;
+    border-radius: 4px;
+    padding: 0.4rem 2rem 0.4rem 0.7rem;
     cursor: pointer;
     /* Pilen ritas i bakgrunden så vi slipper ett extra element. */
     background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
@@ -219,23 +206,10 @@
 
   .picker select:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline-offset: 2px;
   }
 
-  /* --- Barnpanel --- */
-
-  .kid {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-top: 3px solid var(--accent);
-    border-radius: 3px;
-    padding: 0.9rem 0.95rem 1rem;
-  }
-
-  .kid[hidden],
-  .face[hidden] {
-    display: none;
-  }
+  /* --- Barnpanel: en behållare för grupperna --- */
 
   [data-kid="colin"] {
     --accent: var(--colin);
@@ -247,80 +221,135 @@
     --wash: var(--nellie-wash);
   }
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
+  .kid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-top: 2px solid var(--accent);
+    padding-top: 0.5rem;
   }
 
-  .kid .where {
-    font-size: 0.82rem;
-    color: var(--ink-mute);
-    margin: 0 0 0.9rem;
+  .kid[hidden],
+  .face[hidden] {
+    display: none;
   }
+
+  .where {
+    font-size: 0.78rem;
+    color: var(--ink-mute);
+    margin: 0;
+  }
+
+  /* --- Grupper: veckan, viktiga datum, prov, bra att veta --- */
+
+  .group {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.55rem 0.7rem 0.65rem;
+  }
+
+  .group[hidden] {
+    display: none;
+  }
+
+  .glabel {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 0.25rem;
+  }
+
+  /* Veckan är sidans huvudsak, så dess rubrik bär barnets färg. */
+  .group[data-group="week"] > .glabel {
+    color: var(--accent);
+  }
+
+  .empty {
+    font-size: 0.85rem;
+    color: var(--ink-mute);
+    margin: 0.1rem 0 0;
+  }
+
+  .empty[hidden] {
+    display: none;
+  }
+
+  /* --- Poster --- */
 
   ul {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
   }
 
   li {
     display: grid;
-    grid-template-columns: 1.35rem 1fr;
-    gap: 0.1rem 0.55rem;
-    padding: 0.6rem 0;
-    border-top: 1px solid var(--line);
-    align-items: start;
+    grid-template-columns: 1.2rem minmax(0, 1fr) auto;
+    gap: 0 0.45rem;
+    padding: 0.32rem 0;
+    align-items: baseline;
   }
 
-  li:first-child {
-    border-top: 0;
+  li[hidden] {
+    display: none;
+  }
+
+  li + li {
+    border-top: 1px solid var(--line);
   }
 
   .icon {
-    font-size: 0.95rem;
-    line-height: 1.45;
+    grid-column: 1;
+    font-size: 0.8rem;
+    line-height: 1.5;
     text-align: center;
     user-select: none;
   }
 
   .what {
+    grid-column: 2;
     font-weight: 500;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .meta {
-    grid-column: 2;
+    grid-column: 3;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.2rem;
+    align-items: baseline;
+    gap: 0.35rem;
+    white-space: nowrap;
+  }
+
+  .note {
+    grid-column: 2 / -1;
+    font-size: 0.78rem;
+    color: var(--ink-mute);
+    margin: 0.05rem 0 0.1rem;
   }
 
   .when {
     font-family: var(--mono);
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
     color: var(--accent);
     background: var(--wash);
-    padding: 0.1rem 0.4rem;
-    border-radius: 2px;
-    white-space: nowrap;
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
   }
 
-  .shared .when {
-    color: var(--urgent);
-    background: var(--surface);
+  .at {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-mute);
   }
 
   .rel {
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     color: var(--ink-mute);
   }
 
@@ -333,184 +362,177 @@
     text-decoration: line-through;
   }
 
-  .caveat {
-    grid-column: 2;
-    font-size: 0.8rem;
+  /* --- Dagsrubrik i veckofacket --- */
+
+  li.dayhead {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+    padding: 0.55rem 0 0.1rem;
+    border-top: 0;
+  }
+
+  li.dayhead:first-child {
+    padding-top: 0.1rem;
+  }
+
+  /* Dagsrubriken avdelar redan — posten under den behöver ingen linje. */
+  li.dayhead + li {
+    border-top: 0;
+  }
+
+  .dayrel {
+    font-family: var(--body);
+    font-size: 0.7rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--ink-mute);
-    font-style: italic;
-    margin: 0.15rem 0 0;
+    margin-left: 0.4rem;
   }
 
-  /* Kryssrutor: bara på det som faktiskt går att göra klart. */
-  label.what {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    cursor: pointer;
+  /* En dag, ett datum. Dagsrubriken säger "mån 24.8", så posterna under den
+     behöver inte upprepa det. Klockslaget står kvar — det är per post. */
+  .group[data-group="week"] .when,
+  .group[data-group="week"] .rel {
+    display: none;
   }
 
-  input[type="checkbox"] {
-    appearance: none;
-    flex: none;
-    width: 0.95rem;
-    height: 0.95rem;
-    margin: 0.22rem 0 0;
-    border: 1.5px solid var(--line-firm);
-    border-radius: 2px;
+  /* --- Dropdown: bra att veta, oklarheter --- */
+
+  details.group,
+  details.unclear {
+    padding: 0.35rem 0.7rem;
+  }
+
+  details.unclear {
     background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--ink-soft);
+  }
+
+  details summary {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.5rem;
     cursor: pointer;
-    display: grid;
-    place-content: center;
+    list-style: none;
   }
 
-  input[type="checkbox"]::after {
+  details summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details summary::before {
     content: "";
-    width: 0.5rem;
-    height: 0.28rem;
-    border-left: 2px solid var(--surface);
-    border-bottom: 2px solid var(--surface);
-    transform: rotate(-45deg) translateY(-0.05rem);
-    opacity: 0;
+    width: 0.4rem;
+    height: 0.4rem;
+    flex: none;
+    border-right: 1.5px solid var(--ink-mute);
+    border-bottom: 1.5px solid var(--ink-mute);
+    transform: rotate(-45deg);
+    transition: transform 0.12s ease;
   }
 
-  input[type="checkbox"]:checked {
-    background: var(--done);
-    border-color: var(--done);
+  details[open] summary::before {
+    transform: rotate(45deg);
   }
 
-  input[type="checkbox"]:checked::after {
-    opacity: 1;
-  }
-
-  input[type="checkbox"]:focus-visible {
+  details summary:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
-  /* Bara punktens egen kryssruta gråar punkten — inte en dagsläxa längre in. */
-  li:has(> label.what > input:checked) .what,
-  li:has(> label.what > input:checked) .icon {
+  details summary .glabel {
+    margin: 0;
+  }
+
+  .count {
+    font-family: var(--mono);
+    font-size: 0.7rem;
     color: var(--ink-mute);
-  }
-
-  li:has(> label.what > input:checked) label.what span {
-    text-decoration: line-through;
-  }
-
-  /* Läxorna: en rad per dag inne i samma punkt, inte fem punkter i listan. */
-  .days {
-    grid-column: 2;
-    margin-top: 0.4rem;
-    gap: 0.3rem;
-  }
-
-  .days li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.3rem 0.45rem;
-    padding: 0;
-    border-top: 0;
-    font-size: 0.92rem;
-  }
-
-  .days label {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    cursor: pointer;
-  }
-
-  .days li:has(input:checked) span {
-    color: var(--ink-mute);
-  }
-
-  .days li:has(input:checked) label span {
-    text-decoration: line-through;
-  }
-
-  li.exam .what {
-    font-weight: 600;
-  }
-
-  li.exam {
-    border-top-color: var(--line-firm);
-  }
-
-  /* --- Oklart --- */
-
-  .unclear {
-    margin-top: 0.9rem;
-    padding: 0.6rem 0.75rem;
     background: var(--surface-sunk);
     border-radius: 3px;
-    font-size: 0.85rem;
-    color: var(--ink-soft);
+    padding: 0 0.3rem;
   }
 
-  .unclear p {
-    margin: 0;
+  details.group > ul {
+    margin-top: 0.3rem;
+    padding-bottom: 0.3rem;
   }
 
-  .unclear p + p {
-    margin-top: 0.4rem;
+  details.unclear p {
+    font-size: 0.82rem;
+    margin: 0.3rem 0;
   }
 
-  .unclear strong {
-    display: block;
+  /* --- Gemensamt: gäller båda barnen --- */
+
+  .shared {
+    background: var(--urgent-wash);
+    border: 1px solid var(--urgent);
+    border-radius: 4px;
+    padding: 0.55rem 0.7rem 0.65rem;
+  }
+
+  .shared .tag {
     font-family: var(--mono);
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--ink-mute);
-    margin-bottom: 0.2rem;
+    color: var(--urgent);
+    margin: 0 0 0.25rem;
   }
 
-  /* --- Sidfot --- */
-
-  footer {
-    border-top: 1px solid var(--line);
-    padding-top: 1rem;
-    font-size: 0.82rem;
-    color: var(--ink-mute);
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+  .shared li {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  footer p {
-    margin: 0;
+  .shared li + li {
+    border-top-color: var(--urgent);
   }
 
-  footer b {
-    color: var(--ink-soft);
+  .shared .what {
+    grid-column: 1;
     font-weight: 600;
+  }
+
+  .shared .meta {
+    grid-column: 2;
+  }
+
+  .shared .when {
+    color: var(--urgent);
+    background: var(--surface);
+  }
+
+  .shared .note {
+    grid-column: 1 / -1;
   }
 
   /* Från ~640 px och uppåt finns det plats för mer luft. */
   @media (min-width: 40rem) {
     body {
-      padding: 2rem 1.5rem 4rem;
+      padding: 1.5rem 1.25rem 3rem;
     }
 
     .board {
-      gap: 1.5rem;
+      gap: 0.9rem;
     }
 
+    .group,
     .shared {
-      padding: 1rem 1.15rem;
-    }
-
-    .shared .headline {
-      font-size: 1.4rem;
-    }
-
-    .kid {
-      padding: 1.1rem 1.15rem 1.25rem;
+      padding: 0.7rem 0.95rem 0.8rem;
     }
 
     li {
-      grid-template-columns: 1.5rem 1fr;
+      grid-template-columns: 1.3rem minmax(0, 1fr) auto;
+      padding: 0.36rem 0;
     }
   }
 
@@ -524,19 +546,20 @@
 
 <div class="board">
   <header>
-    <p class="eyebrow" data-t="stamp">Läget fredag 21.8 · 11 Wilma-meddelanden + veckoplanering v.35</p>
-    <div class="lang" role="group" data-t-label="langGroup" aria-label="Språk">
+    <p class="eyebrow" data-t="hdr0">Uppdaterad 2026-08-21</p>
+    <div class="lang" role="group" data-t-label="hdr2" aria-label="Språk">
       <button type="button" data-lang="sv" aria-pressed="true">SV</button>
       <button type="button" data-lang="fi" aria-pressed="false">FI</button>
     </div>
-    <h1 class="sr-only" data-t="title">Skolveckan hemma</h1>
+    <h1 class="sr-only" data-t="hdr1">Skolveckan hemma</h1>
   </header>
 
+  <p class="stale" id="stale" data-t="hdr4" hidden></p>
 
   <div class="picker" data-kid="colin">
     <img class="face" data-kid="colin" alt="" src="data:image/jpeg;base64,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" />
     <img class="face" data-kid="nellie" alt="" src="data:image/jpeg;base64,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" hidden />
-    <label class="sr-only" for="kid" data-t="pickerLabel">Barn</label>
+    <label class="sr-only" for="kid" data-t="hdr3">Barn</label>
     <select id="kid">
       <option value="colin">Colin</option>
       <option value="nellie">Nellie</option>
@@ -544,290 +567,141 @@
   </div>
 
   <div class="panels">
-    <!-- Colin -->
     <section class="kid" data-kid="colin">
       <h2 class="sr-only">Colin</h2>
       <p class="where">Oxhamns skola · 7A</p>
-      <ul>
-        <li>
-          <span class="icon">✍️</span>
-          <label class="what"
-            ><input type="checkbox" data-id="colin-diet" /><span data-t="cDiet"
-              >Gör dietanmälan på nytt</span
-            ></label
-          >
-          <p class="caveat" data-t="cDietNote">
-            Gäller även er som anmält tidigare år. Länk på Wilmas inloggningssida.
-          </p>
-        </li>
-        <li>
-          <span class="icon">🎒</span>
-          <label class="what"
-            ><input type="checkbox" data-id="colin-ukr" /><span data-t="cUkr"
-              >Hemspråk i ukrainska börjar, mån 14.25–15.50</span
-            ></label
-          >
-          <div class="meta">
-            <span class="when" data-t="cUkrWhen">mån 25.8</span>
-            <span class="rel" data-date="2026-08-25"></span>
-          </div>
-          <p class="caveat" data-t="cUkrNote">
-            Bara om Colin läser ukrainska som hemspråk. Klassrum Panorama.
-          </p>
-        </li>
-        <li>
-          <span class="icon">ℹ️</span>
-          <span class="what" data-t="cPhone">Mobiler samlas in under första lektionen</span>
-          <p class="caveat" data-t="cPhoneNote">
-            Återfås vid skoldagens slut. Nytt för läsåret.
-          </p>
-        </li>
-        <li>
-          <span class="icon">ℹ️</span>
-          <span class="what" data-t="cBook">Livsåskådning åk 7 har ingen lärobok</span>
-        </li>
-        <li class="exam">
-          <span class="icon">📝</span>
-          <span class="what" data-t="cProvMa">Prov: Matematik</span>
-          <div class="meta">
-            <span class="when" data-t="cProvMaWhen">ons 7.10</span>
-            <span class="rel" data-date="2026-10-07"></span>
-          </div>
-        </li>
-        <li class="exam">
-          <span class="icon">📝</span>
-          <span class="what" data-t="cProvFy">Prov: Fysik</span>
-          <div class="meta">
-            <span class="when" data-t="cProvFyWhen">mån 2.11</span>
-            <span class="rel" data-date="2026-11-02"></span>
-          </div>
-        </li>
-      </ul>
+      <section class="group" data-group="week">
+        <h3 class="glabel" data-t="g14">Närmaste veckan</h3>
+        <ul></ul>
+        <p class="empty" data-t="g12">Inget på gång den närmaste veckan</p>
+      </section>
+      <section class="group" data-group="later" hidden>
+        <h3 class="glabel" data-t="g15">Viktiga datum</h3>
+        <ul></ul>
+      </section>
+      <section class="group" data-group="exams">
+        <h3 class="glabel" data-t="g16">Prov</h3>
+        <ul><li data-kind="prov" data-date="2026-10-07"><span class="icon">📝</span><span class="what" data-t="e8">Matematik</span><span class="meta"><span class="when" data-t="w9">ons 7.10</span><span class="rel" data-date="2026-10-07"></span></span></li><li data-kind="prov" data-date="2026-11-02"><span class="icon">📝</span><span class="what" data-t="e10">Fysik</span><span class="meta"><span class="when" data-t="w11">mån 2.11</span><span class="rel" data-date="2026-11-02"></span></span></li></ul>
+      </section>
+      <details class="group" data-group="info">
+        <summary><span class="glabel" data-t="g13">Bra att veta</span> <span class="count">2</span></summary>
+        <ul><li data-kind="deadline"><span class="icon">✍️</span><span class="what" data-t="i5">Gör dietanmälan på nytt</span><p class="note" data-t="n6">Gäller även er som anmält tidigare år.</p></li><li data-kind="info"><span class="icon">ℹ️</span><span class="what" data-t="i7">Mobiler samlas in under första lektionen</span></li></ul>
+      </details>
     </section>
 
-    <!-- Nellie -->
     <section class="kid" data-kid="nellie" hidden>
       <h2 class="sr-only">Nellie</h2>
       <p class="where">Bonäs skola · 2b</p>
-      <ul>
-        <li>
-          <span class="icon">🎒</span>
-          <label class="what"
-            ><input type="checkbox" data-id="nellie-promenad" /><span data-t="nPromenad"
-              >Utekläder och skor på tisdag — gympan blir promenad</span
-            ></label
-          >
-          <div class="meta">
-            <span class="when" data-t="nPromenadWhen">tis 25.8</span>
-            <span class="rel" data-date="2026-08-25"></span>
-          </div>
-          <p class="caveat" data-t="nPromenadNote">
-            Ombyteskläder behövs inte, men kläder och skor som håller för promenad och
-            utelek.
-          </p>
-        </li>
-        <li>
-          <span class="icon">📖</span>
-          <span class="what" data-t="nLaxor">Läxor vecka 35</span>
-          <ul class="days">
-            <li>
-              <label
-                ><input type="checkbox" data-id="nellie-lax-mon" /><span data-t="nLaxMon"
-                  >Matematik: Kom ihåg s. 27</span
-                ></label
-              >
-              <span class="when" data-t="nLaxMonWhen">mån 24.8</span>
-              <span class="rel" data-date="2026-08-24"></span>
-            </li>
-            <li>
-              <label
-                ><input type="checkbox" data-id="nellie-lax-tue" /><span data-t="nLaxTue"
-                  >Läsläxa: Hemligheten kap. 2, s. 6–7</span
-                ></label
-              >
-              <span class="when" data-t="nLaxTueWhen">tis 25.8</span>
-              <span class="rel" data-date="2026-08-25"></span>
-            </li>
-            <li>
-              <label
-                ><input type="checkbox" data-id="nellie-lax-wed" /><span data-t="nLaxWed"
-                  >Matematik: Kom ihåg s. 31</span
-                ></label
-              >
-              <span class="when" data-t="nLaxWedWhen">ons 26.8</span>
-              <span class="rel" data-date="2026-08-26"></span>
-            </li>
-            <li>
-              <label
-                ><input type="checkbox" data-id="nellie-lax-thu" /><span data-t="nLaxThu"
-                  >Matematik: Rutan s. 35 · läsläxa s. 8–9</span
-                ></label
-              >
-              <span class="when" data-t="nLaxThuWhen">tor 27.8</span>
-              <span class="rel" data-date="2026-08-27"></span>
-            </li>
-          </ul>
-          <p class="caveat" data-t="nLaxorNote">
-            Ur veckoplaneringen. Fredag är läxfritt.
-          </p>
-        </li>
-        <li>
-          <span class="icon">📍</span>
-          <span class="what" data-t="nFoto">Skolfotografering</span>
-          <div class="meta">
-            <span class="when" data-t="nFotoWhen">tor–fre 10–11.9</span>
-            <span class="rel" data-date="2026-09-10"></span>
-          </div>
-        </li>
-        <li>
-          <span class="icon">✍️</span>
-          <label class="what"
-            ><input type="checkbox" data-id="nellie-foto" /><span data-t="nKompis"
-              >Kryssa inte i kompisfoto på blanketten</span
-            ></label
-          >
-          <p class="caveat" data-t="nKompisNote">
-            Skolan tar inga kompisfoton, även om rutan finns.
-          </p>
-        </li>
-        <li>
-          <span class="icon">🎒</span>
-          <label class="what"
-            ><input type="checkbox" data-id="nellie-ficka" /><span data-t="nFicka"
-              >Töm plastfickan, lägg tillbaka den i väskan</span
-            ></label
-          >
-          <p class="caveat" data-t="nFickaNote">
-            Varje vecka — veckoplaneringen kommer den vägen.
-          </p>
-        </li>
-        <li>
-          <span class="icon">🎒</span>
-          <label class="what"
-            ><input type="checkbox" data-id="nellie-leksaker" /><span data-t="nLeksaker"
-              >Lämna leksakerna hemma</span
-            ></label
-          >
-          <p class="caveat" data-t="nLeksakerNote">Penal, pennor, sudd och linjal räcker.</p>
-        </li>
-        <li>
-          <span class="icon">🎒</span>
-          <label class="what"
-            ><input type="checkbox" data-id="nellie-hjalm" /><span data-t="nHjalm"
-              >Kolla att cykelhjälmen sitter rätt</span
-            ></label
-          >
-        </li>
-        <li>
-          <span class="icon">ℹ️</span>
-          <span class="what" data-t="nHalsa">Hälsoundersökning åk 2 inom en månad</span>
-          <p class="caveat" data-t="nHalsaNote">
-            Hör av dig via Wilma om något vaccin saknas.
-          </p>
-        </li>
-        <li class="exam">
-          <span class="icon">📝</span>
-          <span class="what" data-t="nProv">Inga inbokade prov</span>
-        </li>
-      </ul>
-      <div class="unclear">
-        <strong data-t="unclearLabel">Oklart</strong>
-        <p data-t="unclearText">
-          Föräldramöte hålls i höst, men datum är inte bestämt — skolan väntar på besked
-          om invigning och öppet hus.
-        </p>
-        <p data-t="unclearText2">
-          Måndagens slöjd har temat "Äpplen" — veckoplaneringen säger inte om något ska
-          tas med hemifrån.
-        </p>
-      </div>
+      <section class="group" data-group="week">
+        <h3 class="glabel" data-t="g29">Närmaste veckan</h3>
+        <ul><li data-kind="ta_med" data-date="2026-08-25"><span class="icon">🎒</span><span class="what" data-t="i17">Utekläder och skor — gympan blir promenad</span><span class="meta"><span class="when" data-t="w18">tis 25.8</span><span class="rel" data-date="2026-08-25"></span></span><p class="note" data-t="n19">Ombyteskläder behövs inte.</p></li><li data-kind="laxa" data-date="2026-08-24"><span class="icon">📖</span><span class="what" data-t="i20">Matematik: Kom ihåg s. 27</span><span class="meta"><span class="when" data-t="w21">mån 24.8</span><span class="rel" data-date="2026-08-24"></span></span></li><li data-kind="laxa" data-date="2026-08-25"><span class="icon">📖</span><span class="what" data-t="i22">Läsläxa: Hemligheten kap. 2, s. 6–7</span><span class="meta"><span class="when" data-t="w23">tis 25.8</span><span class="rel" data-date="2026-08-25"></span></span></li></ul>
+        <p class="empty" data-t="g26">Inget på gång den närmaste veckan</p>
+      </section>
+      <section class="group" data-group="later">
+        <h3 class="glabel" data-t="g30">Viktiga datum</h3>
+        <ul><li data-kind="evenemang" data-date="2026-09-10"><span class="icon">📍</span><span class="what" data-t="i24">Skolfotografering</span><span class="meta"><span class="when" data-t="w25">tor–fre 10–11.9</span><span class="rel" data-date="2026-09-10"></span></span></li></ul>
+      </section>
+      <section class="group" data-group="exams" hidden>
+        <h3 class="glabel" data-t="g31">Prov</h3>
+        <ul></ul>
+      </section>
+      <details class="unclear">
+        <summary><span class="glabel" data-t="u27">Oklart</span> <span class="count">1</span></summary>
+        <p data-t="u28">Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.</p>
+      </details>
     </section>
   </div>
 
-  <section class="shared" aria-labelledby="shared-title">
-    <p class="tag" data-t="sharedTag">Gäller båda</p>
-    <p class="headline" id="shared-title" data-t="sharedHead">Skoldagen slutar kl. 12.15</p>
-    <span class="when" data-t="sharedWhen">tis 25.8</span>
-    <span class="rel" data-date="2026-08-25"></span>
+  <section class="shared">
+    <p class="tag" data-t="s35">Gäller båda</p>
+    <ul><li data-kind="andrad_tid" data-date="2026-08-25"><span class="what" data-t="s32">Skoldagen slutar kl. 12.15</span><span class="meta"><span class="when" data-t="w33">tis 25.8</span><span class="rel" data-date="2026-08-25"></span></span><p class="note" data-t="n34">Eftis fungerar normalt.</p></li></ul>
   </section>
-
-  <footer>
-    <p>
-      <b data-t="footLead">Snabbläst ur Wilma.</b>
-      <span data-t="footBody"
-        >Varje rad kommer ur ett riktigt Wilma-meddelande eller ur veckoplaneringen;
-        inget är tillagt. Tider som gällde vecka 34 är förbrukade och står inte kvar
-        här.</span
-      >
-    </p>
-    <p data-t="footNote">
-      Colin och Nellie har separata inkorgar i Wilma — därför en spalt var, och ett
-      gemensamt band för det som gick ut till hela kommunen.
-    </p>
-  </footer>
 </div>
 
 <script>
   (function () {
-    // Båda språken bor i samma tabell, så en ändring på svenska aldrig kan
-    // glömmas bort på finska.
+    const STAMP = "2026-08-21";
     const STRINGS = {
       sv: {
-        stamp: "Läget fredag 21.8 · 11 Wilma-meddelanden + veckoplanering v.35",
-        title: "Skolveckan hemma",
-        langGroup: "Språk",
-        pickerLabel: "Barn",
-        sharedTag: "Gäller båda",
-        sharedHead: "Skoldagen slutar kl. 12.15",
-        sharedWhen: "tis 25.8",
-        cDiet: "Gör dietanmälan på nytt",
-        cDietNote: "Gäller även er som anmält tidigare år. Länk på Wilmas inloggningssida.",
-        cUkr: "Hemspråk i ukrainska börjar, mån 14.25–15.50",
-        cUkrWhen: "mån 25.8",
-        cUkrNote: "Bara om Colin läser ukrainska som hemspråk. Klassrum Panorama.",
-        cPhone: "Mobiler samlas in under första lektionen",
-        cPhoneNote: "Återfås vid skoldagens slut. Nytt för läsåret.",
-        cBook: "Livsåskådning åk 7 har ingen lärobok",
-        nPromenad: "Utekläder och skor på tisdag — gympan blir promenad",
-        nPromenadWhen: "tis 25.8",
-        nPromenadNote:
-          "Ombyteskläder behövs inte, men kläder och skor som håller för promenad och utelek.",
-        nLaxor: "Läxor vecka 35",
-        nLaxMon: "Matematik: Kom ihåg s. 27",
-        nLaxMonWhen: "mån 24.8",
-        nLaxTue: "Läsläxa: Hemligheten kap. 2, s. 6–7",
-        nLaxTueWhen: "tis 25.8",
-        nLaxWed: "Matematik: Kom ihåg s. 31",
-        nLaxWedWhen: "ons 26.8",
-        nLaxThu: "Matematik: Rutan s. 35 · läsläxa s. 8–9",
-        nLaxThuWhen: "tor 27.8",
-        nLaxorNote: "Ur veckoplaneringen. Fredag är läxfritt.",
-        nFoto: "Skolfotografering",
-        nFotoWhen: "tor–fre 10–11.9",
-        nKompis: "Kryssa inte i kompisfoto på blanketten",
-        nKompisNote: "Skolan tar inga kompisfoton, även om rutan finns.",
-        nFicka: "Töm plastfickan, lägg tillbaka den i väskan",
-        nFickaNote: "Varje vecka — veckoplaneringen kommer den vägen.",
-        nLeksaker: "Lämna leksakerna hemma",
-        nLeksakerNote: "Penal, pennor, sudd och linjal räcker.",
-        nHjalm: "Kolla att cykelhjälmen sitter rätt",
-        nHalsa: "Hälsoundersökning åk 2 inom en månad",
-        nHalsaNote: "Hör av dig via Wilma om något vaccin saknas.",
-        cProvMa: "Prov: Matematik",
-        cProvMaWhen: "ons 7.10",
-        cProvFy: "Prov: Fysik",
-        cProvFyWhen: "mån 2.11",
-        nProv: "Inga inbokade prov",
-        unclearLabel: "Oklart",
-        unclearText:
-          "Föräldramöte hålls i höst, men datum är inte bestämt — skolan väntar på besked om invigning och öppet hus.",
-        unclearText2:
-          "Måndagens slöjd har temat \u201dÄpplen\u201d — veckoplaneringen säger inte om något ska tas med hemifrån.",
-        footLead: "Snabbläst ur Wilma.",
-        footBody:
-          "Varje rad kommer ur ett riktigt Wilma-meddelande eller ur veckoplaneringen; inget är tillagt. Tider som gällde vecka 34 är förbrukade och står inte kvar här.",
-        footNote:
-          "Colin och Nellie har separata inkorgar i Wilma — därför en spalt var, och ett gemensamt band för det som gick ut till hela kommunen.",
+        hdr0: "Uppdaterad 2026-08-21",
+        hdr1: "Skolveckan hemma",
+        hdr2: "Språk",
+        hdr3: "Barn",
+        hdr4: "Sidan har inte uppdaterats på flera dygn — körningen kan ha slutat fungera.",
+        i5: "Gör dietanmälan på nytt",
+        n6: "Gäller även er som anmält tidigare år.",
+        i7: "Mobiler samlas in under första lektionen",
+        e8: "Matematik",
+        w9: "ons 7.10",
+        e10: "Fysik",
+        w11: "mån 2.11",
+        g12: "Inget på gång den närmaste veckan",
+        g13: "Bra att veta",
+        g14: "Närmaste veckan",
+        g15: "Viktiga datum",
+        g16: "Prov",
+        i17: "Utekläder och skor — gympan blir promenad",
+        w18: "tis 25.8",
+        n19: "Ombyteskläder behövs inte.",
+        i20: "Matematik: Kom ihåg s. 27",
+        w21: "mån 24.8",
+        i22: "Läsläxa: Hemligheten kap. 2, s. 6–7",
+        w23: "tis 25.8",
+        i24: "Skolfotografering",
+        w25: "tor–fre 10–11.9",
+        g26: "Inget på gång den närmaste veckan",
+        u27: "Oklart",
+        u28: "Måndagens slöjd har temat Äpplen — oklart om något ska tas med hemifrån.",
+        g29: "Närmaste veckan",
+        g30: "Viktiga datum",
+        g31: "Prov",
+        s32: "Skoldagen slutar kl. 12.15",
+        w33: "tis 25.8",
+        n34: "Eftis fungerar normalt.",
+        s35: "Gäller båda",
+      },
+      fi: {
+        hdr0: "Päivitetty 2026-08-21",
+        hdr1: "Kouluviikko kotona",
+        hdr2: "Kieli",
+        hdr3: "Lapset",
+        hdr4: "Sivua ei ole päivitetty useaan päivään — ajo voi olla rikki.",
+        i5: "Tee ruokavalioilmoitus uudelleen",
+        n6: "Koskee myös aiemmin ilmoittaneita.",
+        i7: "Puhelimet kerätään ensimmäisellä tunnilla",
+        e8: "Matematik",
+        w9: "ke 7.10.",
+        e10: "Fysik",
+        w11: "ma 2.11.",
+        g12: "Ei mitään lähimmän viikon aikana",
+        g13: "Hyvä tietää",
+        g14: "Lähin viikko",
+        g15: "Tärkeät päivät",
+        g16: "Kokeet",
+        i17: "Ulkovaatteet ja kengät — liikunta on kävelyretki",
+        w18: "ti 25.8.",
+        n19: "Vaihtovaatteita ei tarvita.",
+        i20: "Matematiikka: Muista s. 27",
+        w21: "ma 24.8.",
+        i22: "Lukuläksy: Hemligheten luku 2, s. 6–7",
+        w23: "ti 25.8.",
+        i24: "Koulukuvaus",
+        w25: "to–pe 10.–11.9.",
+        g26: "Ei mitään lähimmän viikon aikana",
+        u27: "Epäselvää",
+        u28: "Maanantain käsityön teema on omenat — epäselvää pitääkö kotoa ottaa jotain.",
+        g29: "Lähin viikko",
+        g30: "Tärkeät päivät",
+        g31: "Kokeet",
+        s32: "Koulupäivä päättyy klo 12.15",
+        w33: "ti 25.8.",
+        n34: "Iltapäivätoiminta toimii normaalisti.",
+        s35: "Koskee molempia",
+      },
+    };
+    const WORDS = {
+      sv: {
+        days: ["sön", "mån", "tis", "ons", "tor", "fre", "lör"],
         today: "idag",
         tomorrow: "imorgon",
         yesterday: "igår",
@@ -835,62 +709,7 @@
         agoDays: (n) => `${n} dagar sedan`,
       },
       fi: {
-        stamp: "Tilanne perjantai 21.8. · 11 Wilma-viestiä + viikkosuunnitelma vk 35",
-        title: "Kouluviikko kotona",
-        langGroup: "Kieli",
-        pickerLabel: "Lapset",
-        sharedTag: "Koskee molempia",
-        sharedHead: "Koulupäivä päättyy klo 12.15",
-        sharedWhen: "ti 25.8.",
-        cDiet: "Tee ruokavalioilmoitus uudelleen",
-        cDietNote:
-          "Koskee myös niitä, jotka ovat ilmoittaneet aiempina vuosina. Linkki Wilman kirjautumissivulla.",
-        cUkr: "Ukrainan äidinkielen opetus alkaa, ma 14.25–15.50",
-        cUkrWhen: "ma 25.8.",
-        cUkrNote: "Vain jos Colin opiskelee ukrainaa äidinkielenä. Luokka Panorama.",
-        cPhone: "Puhelimet kerätään ensimmäisellä tunnilla",
-        cPhoneNote: "Palautetaan koulupäivän päätteeksi. Uutta tänä lukuvuonna.",
-        cBook: "7. luokan elämänkatsomustiedossa ei ole oppikirjaa",
-        nPromenad: "Tiistaina ulkovaatteet ja kengät — liikuntatunti on kävelyretki",
-        nPromenadWhen: "ti 25.8.",
-        nPromenadNote:
-          "Vaihtovaatteita ei tarvita, mutta vaatteet ja kengät jotka kestävät kävelyn ja ulkoleikin.",
-        nLaxor: "Läksyt viikolla 35",
-        nLaxMon: "Matematiikka: Muista s. 27",
-        nLaxMonWhen: "ma 24.8.",
-        nLaxTue: "Lukuläksy: Hemligheten luku 2, s. 6–7",
-        nLaxTueWhen: "ti 25.8.",
-        nLaxWed: "Matematiikka: Muista s. 31",
-        nLaxWedWhen: "ke 26.8.",
-        nLaxThu: "Matematiikka: Ruutu s. 35 · lukuläksy s. 8–9",
-        nLaxThuWhen: "to 27.8.",
-        nLaxorNote: "Viikkosuunnitelmasta. Perjantai on läksytön.",
-        nFoto: "Koulukuvaus",
-        nFotoWhen: "to–pe 10.–11.9.",
-        nKompis: "Älä rastita kaverikuvaa lomakkeeseen",
-        nKompisNote: "Koulu ei ota kaverikuvia, vaikka ruutu on lomakkeessa.",
-        nFicka: "Tyhjennä muovitasku ja laita se takaisin reppuun",
-        nFickaNote: "Joka viikko — viikkosuunnitelma tulee sitä kautta.",
-        nLeksaker: "Jätä lelut kotiin",
-        nLeksakerNote: "Penaali, kynät, kumi ja viivoitin riittävät.",
-        nHjalm: "Tarkista että pyöräilykypärä istuu oikein",
-        nHalsa: "2. luokan terveystarkastus kuukauden sisällä",
-        nHalsaNote: "Ota yhteyttä Wilmassa, jos jokin rokote puuttuu.",
-        cProvMa: "Koe: Matematiikka",
-        cProvMaWhen: "ke 7.10.",
-        cProvFy: "Koe: Fysiikka",
-        cProvFyWhen: "ma 2.11.",
-        nProv: "Ei sovittuja kokeita",
-        unclearLabel: "Epäselvää",
-        unclearText:
-          "Vanhempainilta pidetään syksyllä, mutta päivää ei ole päätetty — koulu odottaa tietoa vihkiäisistä ja avoimien ovien päivästä.",
-        unclearText2:
-          "Maanantain käsityön teemana on \u201domenat\u201d — viikkosuunnitelmassa ei sanota, pitääkö kotoa ottaa jotain mukaan.",
-        footLead: "Pikaluettu Wilmasta.",
-        footBody:
-          "Jokainen rivi tulee oikeasta Wilma-viestistä tai viikkosuunnitelmasta; mitään ei ole lisätty. Viikkoa 34 koskeneet ajat ovat menneet, eivätkä ne ole enää tässä.",
-        footNote:
-          "Colinilla ja Nelliellä on Wilmassa erilliset postilaatikot — siksi oma palsta kummallekin ja yhteinen palkki sille mikä lähti koko kunnalle.",
+        days: ["su", "ma", "ti", "ke", "to", "pe", "la"],
         today: "tänään",
         tomorrow: "huomenna",
         yesterday: "eilen",
@@ -900,7 +719,7 @@
     };
 
     const LANG_KEY = "skolveckan.lang";
-    const DONE_KEY = "skolveckan.done";
+    const KID_KEY = "skolveckan.kid";
 
     const store = {
       get(key, fallback) {
@@ -915,34 +734,127 @@
         try {
           localStorage.setItem(key, value);
         } catch (e) {
-          /* privat läge eller blockerad lagring — sidan fungerar ändå */
+          /* privat läge — sidan fungerar, den minns bara inte */
         }
       },
     };
 
+    const iso = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayIso = iso(today);
 
-    function renderDates(t) {
+    // Rullande sju dagar — se kommentaren i render.mjs om varför inte kalendervecka.
+    const weekEnd = new Date(today);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const weekEndIso = iso(weekEnd);
+
+    const daysFrom = (isoDate) => Math.round((new Date(isoDate + "T00:00:00") - today) / 86400000);
+
+    /**
+     * Vilket fack en post hör till I DAG. Renderaren placerade den en gång, men
+     * sidan lever vidare i dagar — därför räknas facket om vid varje visning.
+     */
+    function bucketFor(li) {
+      const date = li.dataset.date;
+      // Passerat först: ett prov som varit ska gömmas som allt annat som varit.
+      if (date && date < todayIso) return "past";
+      if (li.dataset.kind === "prov") return "exams";
+      if (!date) return "info";
+      if (date <= weekEndIso) return "week";
+      return li.dataset.kind === "info" ? "info" : "later";
+    }
+
+    function regroup(panel, words) {
+      const groups = {
+        week: panel.querySelector('.group[data-group="week"]'),
+        later: panel.querySelector('.group[data-group="later"]'),
+        exams: panel.querySelector('.group[data-group="exams"]'),
+        info: panel.querySelector('details[data-group="info"]'),
+      };
+
+      for (const li of panel.querySelectorAll("li[data-kind]")) {
+        const target = bucketFor(li);
+        if (target === "past") {
+          li.hidden = true;
+          continue;
+        }
+        li.hidden = false;
+        const list = groups[target] && groups[target].querySelector("ul");
+        if (list && li.parentElement !== list) list.append(li);
+      }
+
+      // Dagsrubriker byggs av JS, så de aldrig blir gamla.
+      const weekList = groups.week && groups.week.querySelector("ul");
+      if (weekList) {
+        for (const old of [...weekList.querySelectorAll("li.dayhead")]) old.remove();
+        const live = [...weekList.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
+        live.sort((a, b) => (a.dataset.date || "").localeCompare(b.dataset.date || ""));
+        let lastDate = null;
+        for (const li of live) {
+          weekList.append(li);
+          if (li.dataset.date !== lastDate) {
+            lastDate = li.dataset.date;
+            const head = document.createElement("li");
+            head.className = "dayhead";
+            const parts = lastDate.split("-").map(Number);
+            const wd = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay();
+            head.textContent = words.days[wd] + " " + parts[2] + "." + parts[1];
+            const days = daysFrom(lastDate);
+            const rel =
+              days === 0
+                ? words.today
+                : days === 1
+                  ? words.tomorrow
+                  : days > 0
+                    ? words.inDays(days)
+                    : null;
+            if (rel) {
+              const span = document.createElement("span");
+              span.className = "dayrel";
+              span.textContent = rel;
+              head.append(span);
+            }
+            weekList.insertBefore(head, li);
+          }
+        }
+        const empty = groups.week.querySelector(".empty");
+        if (empty) empty.hidden = live.length > 0;
+      }
+
+      for (const name of ["later", "exams"]) {
+        const g = groups[name];
+        if (!g) continue;
+        g.hidden = ![...g.querySelectorAll("li[data-kind]")].some((li) => !li.hidden);
+      }
+      if (groups.info) {
+        const live = [...groups.info.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
+        groups.info.hidden = live.length === 0;
+        const count = groups.info.querySelector(".count");
+        if (count) count.textContent = String(live.length);
+      }
+    }
+
+    function renderDates(words) {
       for (const el of document.querySelectorAll(".rel[data-date]")) {
-        const target = new Date(el.dataset.date + "T00:00:00");
-        const days = Math.round((target - today) / 86400000);
-
+        const days = daysFrom(el.dataset.date);
         let label, state;
         if (days === 0) {
-          label = t.today;
+          label = words.today;
           state = "soon";
         } else if (days === 1) {
-          label = t.tomorrow;
+          label = words.tomorrow;
           state = "soon";
         } else if (days === -1) {
-          label = t.yesterday;
+          label = words.yesterday;
           state = "past";
         } else if (days < 0) {
-          label = t.agoDays(Math.abs(days));
+          label = words.agoDays(Math.abs(days));
           state = "past";
         } else {
-          label = t.inDays(days);
+          label = words.inDays(days);
           state = days <= 7 ? "soon" : "later";
         }
         el.textContent = label;
@@ -950,20 +862,31 @@
       }
     }
 
-    function setLang(lang) {
-      const t = STRINGS[lang] || STRINGS.sv;
+    const stale = document.getElementById("stale");
+    if (stale) stale.hidden = daysFrom(STAMP) > -3;
 
+    function setLang(lang) {
+      const tableFor = STRINGS[lang] || STRINGS.sv;
+      const words = WORDS[lang] || WORDS.sv;
       for (const el of document.querySelectorAll("[data-t]")) {
-        const value = t[el.dataset.t];
+        const value = tableFor[el.dataset.t];
         if (typeof value === "string") el.textContent = value;
       }
       for (const el of document.querySelectorAll("[data-t-label]")) {
-        const value = t[el.dataset.tLabel];
+        const value = tableFor[el.dataset.tLabel];
         if (typeof value === "string") el.setAttribute("aria-label", value);
       }
-
-      renderDates(t);
       document.documentElement.lang = lang;
+      renderDates(words);
+      for (const panel of document.querySelectorAll("section.kid")) regroup(panel, words);
+      // Det gemensamma bandet har inga fack, men passerat ska gömmas där också.
+      const shared = document.querySelector(".shared");
+      if (shared) {
+        for (const li of shared.querySelectorAll("li[data-date]")) {
+          li.hidden = li.dataset.date < todayIso;
+        }
+        shared.hidden = ![...shared.querySelectorAll("li")].some((li) => !li.hidden);
+      }
       for (const button of document.querySelectorAll(".lang button")) {
         button.setAttribute("aria-pressed", String(button.dataset.lang === lang));
       }
@@ -974,45 +897,28 @@
       button.addEventListener("click", () => setLang(button.dataset.lang));
     }
 
-    // Webbläsarens språk avgör förstagången; valet därefter är läsarens.
-    const saved = store.get(LANG_KEY, null);
+    const savedLang = store.get(LANG_KEY, null);
     const guess = (navigator.language || "sv").toLowerCase().startsWith("fi") ? "fi" : "sv";
-    setLang(saved === "fi" || saved === "sv" ? saved : guess);
+    setLang(savedLang === "fi" || savedLang === "sv" ? savedLang : guess);
 
     // --- Barnväljare ---
-    const KID_KEY = "skolveckan.kid";
     const picker = document.querySelector(".picker");
     const select = document.getElementById("kid");
-    const faces = [...document.querySelectorAll(".face")];
+    const faceList = [...document.querySelectorAll(".face")];
     const panels = [...document.querySelectorAll("section.kid")];
     const kids = panels.map((panel) => panel.dataset.kid);
 
     function setKid(kid) {
-      for (const face of faces) face.hidden = face.dataset.kid !== kid;
+      for (const face of faceList) face.hidden = face.dataset.kid !== kid;
       for (const panel of panels) panel.hidden = panel.dataset.kid !== kid;
-      picker.dataset.kid = kid;   // bär accentfärgen vidare till select:en
+      picker.dataset.kid = kid;
       select.value = kid;
       store.set(KID_KEY, kid);
     }
 
     select.addEventListener("change", () => setKid(select.value));
-
     const savedKid = store.get(KID_KEY, null);
     setKid(kids.includes(savedKid) ? savedKid : kids[0]);
 
-    // Avklarat sparas lokalt per läsare, oberoende av språk.
-    let done = {};
-    try {
-      done = JSON.parse(store.get(DONE_KEY, "{}")) || {};
-    } catch (e) {
-      done = {};
-    }
-    for (const box of document.querySelectorAll('input[type="checkbox"][data-id]')) {
-      if (done[box.dataset.id]) box.checked = true;
-      box.addEventListener("change", () => {
-        done[box.dataset.id] = box.checked;
-        store.set(DONE_KEY, JSON.stringify(done));
-      });
-    }
   })();
 </script>

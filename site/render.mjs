@@ -1,12 +1,14 @@
 /**
  * Renderar site/oversikt.html ur data/oversikt.json.
  *
- * Sidan var handskriven fram till nu. Poängen med att generera den är inte att
- * spara skrivande, utan att SV och FI kommer ur samma post: en rad kan inte
- * finnas på ett språk och saknas på det andra.
+ * Två saker att veta om upplägget:
  *
- * STRINGS-tabellen och data-t-nycklarna behålls, så site/build.mjs kan fortsätta
- * vakta språkpariteten precis som förut.
+ * 1. SV och FI kommer ur samma post, så en rad kan inte finnas på ett språk och
+ *    saknas på det andra. STRINGS-tabellen genereras, och site/build.mjs vaktar
+ *    pariteten.
+ * 2. Posterna placeras i fack både här och i webbläsaren. Här, för att sidan ska
+ *    vara läsbar utan JS; i webbläsaren, för att "denna vecka" ska betyda den här
+ *    veckan även dagen efter att sidan byggdes.
  */
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -25,13 +27,10 @@ const ICONS = {
   andrad_tid: "🕒",
   evenemang: "📍",
   betalning: "💳",
-  info: "ℹ️",
   laxa: "📖",
   prov: "📝",
+  info: "ℹ️",
 };
-
-/** Poster man kan bli klar med förtjänar en kryssruta; ren information gör inte. */
-const CHECKABLE = new Set(["ta_med", "deadline", "betalning", "laxa"]);
 
 const esc = (s) =>
   String(s ?? "").replace(
@@ -39,7 +38,6 @@ const esc = (s) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 
-/** JS-strängliteral, säker att bädda in i <script>. */
 const js = (s) => JSON.stringify(String(s ?? "")).replace(/</g, "\\u003c");
 
 // --- Strängtabellen byggs upp medan markupen skrivs -----------------------
@@ -47,7 +45,6 @@ const js = (s) => JSON.stringify(String(s ?? "")).replace(/</g, "\\u003c");
 const strings = { sv: {}, fi: {} };
 let counter = 0;
 
-/** Registrerar ett textpar och returnerar dess data-t-nyckel. */
 function key(sv, fi, hint = "t") {
   const name = `${hint}${counter++}`;
   strings.sv[name] = sv ?? "";
@@ -55,12 +52,12 @@ function key(sv, fi, hint = "t") {
   return name;
 }
 
-/** Ett textelement med nyckel; utelämnas helt om texten är tom. */
 function text(tag, cls, sv, fi, hint) {
-  if (!sv && !fi) return "";
+  // Båda eller inget: en not som bara finns på ett språk blir en tom rad för den
+  // som läser det andra.
+  if (!sv || !fi) return "";
   const k = key(sv, fi, hint);
-  const attrs = cls ? ` class="${cls}"` : "";
-  return `<${tag}${attrs} data-t="${k}">${esc(sv)}</${tag}>`;
+  return `<${tag}${cls ? ` class="${cls}"` : ""} data-t="${k}">${esc(sv)}</${tag}>`;
 }
 
 // --- Datum ---------------------------------------------------------------
@@ -68,110 +65,133 @@ function text(tag, cls, sv, fi, hint) {
 const SV_DAYS = ["sön", "mån", "tis", "ons", "tor", "fre", "lör"];
 const FI_DAYS = ["su", "ma", "ti", "ke", "to", "pe", "la"];
 
-/** "2026-10-07" -> { sv: "ons 7.10", fi: "ke 7.10." } */
+const weekdayOf = (iso) => new Date(`${iso}T00:00:00Z`).getUTCDay();
+
 function dateLabels(iso) {
   const [y, m, d] = iso.split("-").map(Number);
-  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return {
-    sv: `${SV_DAYS[weekday]} ${d}.${m}`,
-    fi: `${FI_DAYS[weekday]} ${d}.${m}.`,
-  };
+  const wd = weekdayOf(iso);
+  return { sv: `${SV_DAYS[wd]} ${d}.${m}`, fi: `${FI_DAYS[wd]} ${d}.${m}.` };
 }
 
-// --- Delar ---------------------------------------------------------------
+/**
+ * Rullande sju dagar, inte "till och med söndag".
+ *
+ * Kalenderveckan låter riktigare men blir tom just när man behöver den: på en
+ * fredag hamnar hela nästa veckas läxor utanför, och veckoplaneringen kommer
+ * på fredagar. Sju dagar framåt innehåller alltid det som är nära.
+ */
+const TODAY = data.stamp;
+const WEEK_END = (() => {
+  const end = new Date(`${TODAY}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 7);
+  return end.toISOString().slice(0, 10);
+})();
 
-function itemMarkup(item, index, scope) {
+/** Samma indelning som webbläsaren gör; här bara för utgångsläget. */
+function bucketOf(item) {
+  if (!item.date) return "info";
+  if (item.date < TODAY) return "past";
+  if (item.date <= WEEK_END) return "week";
+  return item.kind === "info" ? "info" : "later";
+}
+
+// --- Poster --------------------------------------------------------------
+
+function itemMarkup(item) {
   const icon = ICONS[item.kind] ?? "•";
-  const checkable = CHECKABLE.has(item.kind);
-  const rows = [];
-
   const k = key(item.sv.text, item.fi.text, "i");
-  // Kryssrutans id måste överleva en omrendering, annars nollställs bocken.
-  const id = `${scope}-${item.messageId}-${index}`;
-  rows.push(`          <span class="icon">${icon}</span>`);
-  rows.push(
-    checkable
-      ? `          <label class="what"><input type="checkbox" data-id="${esc(id)}" /><span data-t="${k}">${esc(item.sv.text)}</span></label>`
-      : `          <span class="what" data-t="${k}">${esc(item.sv.text)}</span>`,
-  );
 
-  if (item.date || item.time) {
-    const labels = item.date ? dateLabels(item.date) : null;
-    const parts = [];
-    if (labels) {
-      const svLabel = item.sv.dateLabel || labels.sv;
-      const fiLabel = item.fi.dateLabel || labels.fi;
-      const wk = key(item.time ? `${svLabel} ${item.time}` : svLabel,
-                     item.time ? `${fiLabel} ${item.time}` : fiLabel, "w");
-      parts.push(`<span class="when" data-t="${wk}">${esc(svLabel)}${item.time ? " " + esc(item.time) : ""}</span>`);
-      parts.push(`<span class="rel" data-date="${esc(item.date)}"></span>`);
-    } else {
-      const wk = key(item.time, item.time, "w");
-      parts.push(`<span class="when" data-t="${wk}">${esc(item.time)}</span>`);
-    }
-    rows.push(`          <div class="meta">${parts.join("")}</div>`);
+  const label = `<span class="what" data-t="${k}">${esc(item.sv.text)}</span>`;
+
+  const bits = [];
+  if (item.date) {
+    const l = dateLabels(item.date);
+    const wk = key(item.sv.dateLabel || l.sv, item.fi.dateLabel || l.fi, "w");
+    bits.push(`<span class="when" data-t="${wk}">${esc(item.sv.dateLabel || l.sv)}</span>`);
+    bits.push(`<span class="rel" data-date="${esc(item.date)}"></span>`);
   }
+  if (item.time) {
+    const tk = key(item.time, item.time, "w");
+    bits.push(`<span class="at" data-t="${tk}">${esc(item.time)}</span>`);
+  }
+  const meta = bits.length ? `<span class="meta">${bits.join("")}</span>` : "";
+  const note = text("p", "note", item.sv.note, item.fi.note, "n");
 
-  const note = text("p", "caveat", item.sv.note, item.fi.note, "n");
-  if (note) rows.push(`          ${note}`);
-
-  return `        <li${item.kind === "prov" ? ' class="exam"' : ""}>\n${rows.join("\n")}\n        </li>`;
+  return (
+    `<li data-kind="${esc(item.kind)}"${item.date ? ` data-date="${esc(item.date)}"` : ""}>` +
+    `<span class="icon">${icon}</span>${label}${meta}${note}</li>`
+  );
 }
 
-function examMarkup(exam, index, slug) {
-  const labels = dateLabels(exam.date);
-  const k = key(`Prov: ${exam.subject}`, `Koe: ${exam.subject}`, "e");
-  const wk = key(labels.sv, labels.fi, "w");
-  return [
-    `        <li class="exam">`,
-    `          <span class="icon">${ICONS.prov}</span>`,
-    `          <span class="what" data-t="${k}">Prov: ${esc(exam.subject)}</span>`,
-    `          <div class="meta"><span class="when" data-t="${wk}">${esc(labels.sv)}</span>`,
-    `            <span class="rel" data-date="${esc(exam.date)}"></span></div>`,
-    `        </li>`,
-  ].join("\n");
+function examItem(exam) {
+  const l = dateLabels(exam.date);
+  const k = key(exam.subject, exam.subject, "e");
+  const wk = key(l.sv, l.fi, "w");
+  return (
+    `<li data-kind="prov" data-date="${esc(exam.date)}">` +
+    `<span class="icon">${ICONS.prov}</span>` +
+    `<span class="what" data-t="${k}">${esc(exam.subject)}</span>` +
+    `<span class="meta"><span class="when" data-t="${wk}">${esc(l.sv)}</span>` +
+    `<span class="rel" data-date="${esc(exam.date)}"></span></span></li>`
+  );
+}
+
+function group(name, labelSv, labelFi, rows, extra = "") {
+  const hidden = rows.length === 0 && name !== "week" ? " hidden" : "";
+  return (
+    `      <section class="group" data-group="${name}"${hidden}>\n` +
+    `        ${text("h3", "glabel", labelSv, labelFi, "g")}\n` +
+    `        <ul>${rows.join("")}</ul>\n${extra}` +
+    `      </section>`
+  );
 }
 
 function childMarkup(child, first) {
-  const items = child.items.map((item, i) => itemMarkup(item, i, child.slug));
-  const exams = child.exams.map((exam, i) => examMarkup(exam, i, child.slug));
+  const buckets = { week: [], later: [], exams: [], info: [] };
+  child.items.forEach((item) => {
+    const bucket = bucketOf(item);
+    if (bucket === "past") return;
+    buckets[bucket].push(itemMarkup(item));
+  });
+  child.exams.forEach((exam) => buckets.exams.push(examItem(exam)));
 
-  if (items.length === 0 && exams.length === 0) {
-    items.push(
-      [
-        `        <li>`,
-        `          <span class="icon">${ICONS.info}</span>`,
-        `          ${text("span", "what", "Inget att göra just nu", "Ei tehtävää juuri nyt", "i")}`,
-        `        </li>`,
-      ].join("\n"),
-    );
-  } else if (exams.length === 0) {
-    exams.push(
-      [
-        `        <li class="exam">`,
-        `          <span class="icon">${ICONS.prov}</span>`,
-        `          ${text("span", "what", "Inga inbokade prov", "Ei sovittuja kokeita", "e")}`,
-        `        </li>`,
-      ].join("\n"),
-    );
-  }
+  const emptyWeek = `        ${text(
+    "p",
+    "empty",
+    "Inget på gång den närmaste veckan",
+    "Ei mitään lähimmän viikon aikana",
+    "g",
+  )}\n`;
+
+  const infoSection =
+    buckets.info.length === 0
+      ? ""
+      : `      <details class="group" data-group="info">\n` +
+        `        <summary>${text("span", "glabel", "Bra att veta", "Hyvä tietää", "g")}` +
+        ` <span class="count">${buckets.info.length}</span></summary>\n` +
+        `        <ul>${buckets.info.join("")}</ul>\n` +
+        `      </details>`;
 
   const unclear = child.uncertain.length
-    ? [
-        `      <div class="unclear">`,
-        `        ${text("strong", "", "Oklart", "Epäselvää", "u")}`,
-        ...child.uncertain.map((u) => `        ${text("p", "", u.sv, u.fi, "u")}`),
-        `      </div>`,
-      ].join("\n")
+    ? `      <details class="unclear">\n        <summary>${text(
+        "span",
+        "glabel",
+        "Oklart",
+        "Epäselvää",
+        "u",
+      )} <span class="count">${child.uncertain.length}</span></summary>\n` +
+      child.uncertain.map((u) => `        ${text("p", "", u.sv, u.fi, "u")}`).join("\n") +
+      `\n      </details>`
     : "";
 
   return [
     `    <section class="kid" data-kid="${esc(child.slug)}"${first ? "" : " hidden"}>`,
     `      <h2 class="sr-only">${esc(child.name)}</h2>`,
     `      <p class="where">${esc(child.school)} · ${esc(child.className)}</p>`,
-    `      <ul>`,
-    [...items, ...exams].join("\n"),
-    `      </ul>`,
+    group("week", "Närmaste veckan", "Lähin viikko", buckets.week, emptyWeek),
+    group("later", "Viktiga datum", "Tärkeät päivät", buckets.later),
+    group("exams", "Prov", "Kokeet", buckets.exams),
+    infoSection,
     unclear,
     `    </section>`,
   ]
@@ -180,40 +200,32 @@ function childMarkup(child, first) {
 }
 
 function sharedMarkup(shared) {
-  if (shared.length === 0) return "";
-  const rows = shared.map((item) => {
+  const live = shared.filter((item) => !item.date || item.date >= TODAY);
+  if (live.length === 0) return "";
+  const rows = live.map((item) => {
     const k = key(item.sv.text, item.fi.text, "s");
-    const bits = [`      <p class="headline" data-t="${k}">${esc(item.sv.text)}</p>`];
+    const bits = [`<span class="what" data-t="${k}">${esc(item.sv.text)}</span>`];
     if (item.date) {
-      const labels = dateLabels(item.date);
-      const svLabel = item.sv.dateLabel || labels.sv;
-      const fiLabel = item.fi.dateLabel || labels.fi;
-      const wk = key(svLabel, fiLabel, "w");
-      bits.push(`      <span class="when" data-t="${wk}">${esc(svLabel)}</span>`);
-      bits.push(`      <span class="rel" data-date="${esc(item.date)}"></span>`);
+      const l = dateLabels(item.date);
+      const wk = key(item.sv.dateLabel || l.sv, item.fi.dateLabel || l.fi, "w");
+      bits.push(
+        `<span class="meta"><span class="when" data-t="${wk}">${esc(item.sv.dateLabel || l.sv)}</span>` +
+          `<span class="rel" data-date="${esc(item.date)}"></span></span>`,
+      );
     }
     const note = text("p", "note", item.sv.note, item.fi.note, "n");
-    if (note) bits.push(`      ${note}`);
-    return bits.join("\n");
+    return (
+      `<li data-kind="${esc(item.kind ?? "info")}"${item.date ? ` data-date="${esc(item.date)}"` : ""}>` +
+      `${bits.join("")}${note}</li>`
+    );
   });
 
-  return [
-    `  <section class="shared">`,
-    `    ${text("p", "tag", "Gäller båda", "Koskee molempia", "s")}`,
-    rows.join("\n"),
-    `  </section>`,
-  ].join("\n");
+  return (
+    `  <section class="shared">\n` +
+    `    ${text("p", "tag", "Gäller båda", "Koskee molempia", "s")}\n` +
+    `    <ul>${rows.join("")}</ul>\n  </section>`
+  );
 }
-
-/**
- * Strängtabellen skrivs med onoterade nycklar och "      }," som avslutning,
- * eftersom site/build.mjs letar efter just den formen när den kontrollerar att
- * svenska och finska har samma nycklar.
- */
-const table = (entries) =>
-  Object.entries(entries)
-    .map(([k, v]) => `        ${k}: ${js(v)},`)
-    .join("\n");
 
 // --- Sidan ---------------------------------------------------------------
 
@@ -221,26 +233,16 @@ const photoDir = path.join(here, "photos");
 const photos = new Map(
   readdirSync(photoDir)
     .filter((f) => f.endsWith(".jpg"))
-    .map((f) => [
-      path.basename(f, ".jpg"),
-      readFileSync(path.join(photoDir, f)).toString("base64"),
-    ]),
+    .map((f) => [path.basename(f, ".jpg"), readFileSync(path.join(photoDir, f)).toString("base64")]),
 );
 
-const stampSv = `Uppdaterad ${data.stamp} · ${data.messageCount} Wilma-meddelanden`;
-const stampFi = `Päivitetty ${data.stamp} · ${data.messageCount} Wilma-viestiä`;
-const stampKey = key(stampSv, stampFi, "hdr");
+const stampKey = key(`Uppdaterad ${data.stamp}`, `Päivitetty ${data.stamp}`, "hdr");
 const titleKey = key("Skolveckan hemma", "Kouluviikko kotona", "hdr");
 const langKey = key("Språk", "Kieli", "hdr");
 const pickerKey = key("Barn", "Lapset", "hdr");
 const staleKey = key(
-  "Sidan har inte uppdaterats på flera dygn — den automatiska körningen kan ha slutat fungera.",
-  "Sivua ei ole päivitetty useaan päivään — automaattinen ajo voi olla rikki.",
-  "hdr",
-);
-const footKey = key(
-  "Varje rad kommer ur ett Wilma-meddelande eller ur veckoplaneringen; inget är tillagt.",
-  "Jokainen rivi tulee Wilma-viestistä tai viikkosuunnitelmasta; mitään ei ole lisätty.",
+  "Sidan har inte uppdaterats på flera dygn — körningen kan ha slutat fungera.",
+  "Sivua ei ole päivitetty useaan päivään — ajo voi olla rikki.",
   "hdr",
 );
 
@@ -256,6 +258,12 @@ const options = data.children
   .join("\n");
 
 const panels = data.children.map((child, i) => childMarkup(child, i === 0)).join("\n\n");
+const shared = sharedMarkup(data.shared);
+
+const table = (entries) =>
+  Object.entries(entries)
+    .map(([k, v]) => `        ${k}: ${js(v)},`)
+    .join("\n");
 
 const page = `<title>Skolveckan hemma</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -271,7 +279,7 @@ ${css}
 
 <div class="board">
   <header>
-    <p class="eyebrow" data-t="${stampKey}">${esc(stampSv)}</p>
+    <p class="eyebrow" data-t="${stampKey}">${esc(strings.sv[stampKey])}</p>
     <div class="lang" role="group" data-t-label="${langKey}" aria-label="Språk">
       <button type="button" data-lang="sv" aria-pressed="true">SV</button>
       <button type="button" data-lang="fi" aria-pressed="false">FI</button>
@@ -293,11 +301,7 @@ ${options}
 ${panels}
   </div>
 
-${sharedMarkup(data.shared)}
-
-  <footer>
-    <p data-t="${footKey}">${esc(strings.sv[footKey])}</p>
-  </footer>
+${shared}
 </div>
 
 <script>
@@ -313,6 +317,7 @@ ${table(strings.fi)}
     };
     const WORDS = {
       sv: {
+        days: ["sön", "mån", "tis", "ons", "tor", "fre", "lör"],
         today: "idag",
         tomorrow: "imorgon",
         yesterday: "igår",
@@ -320,6 +325,7 @@ ${table(strings.fi)}
         agoDays: (n) => \`\${n} dagar sedan\`,
       },
       fi: {
+        days: ["su", "ma", "ti", "ke", "to", "pe", "la"],
         today: "tänään",
         tomorrow: "huomenna",
         yesterday: "eilen",
@@ -329,7 +335,6 @@ ${table(strings.fi)}
     };
 
     const LANG_KEY = "skolveckan.lang";
-    const DONE_KEY = "skolveckan.done";
     const KID_KEY = "skolveckan.kid";
 
     const store = {
@@ -345,16 +350,108 @@ ${table(strings.fi)}
         try {
           localStorage.setItem(key, value);
         } catch (e) {
-          /* privat läge — sidan fungerar ändå, den minns bara inte */
+          /* privat läge — sidan fungerar, den minns bara inte */
         }
       },
     };
 
+    const iso = (d) =>
+      \`\${d.getFullYear()}-\${String(d.getMonth() + 1).padStart(2, "0")}-\${String(d.getDate()).padStart(2, "0")}\`;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayIso = iso(today);
 
-    const daysFrom = (iso) =>
-      Math.round((new Date(iso + "T00:00:00") - today) / 86400000);
+    // Rullande sju dagar — se kommentaren i render.mjs om varför inte kalendervecka.
+    const weekEnd = new Date(today);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const weekEndIso = iso(weekEnd);
+
+    const daysFrom = (isoDate) => Math.round((new Date(isoDate + "T00:00:00") - today) / 86400000);
+
+    /**
+     * Vilket fack en post hör till I DAG. Renderaren placerade den en gång, men
+     * sidan lever vidare i dagar — därför räknas facket om vid varje visning.
+     */
+    function bucketFor(li) {
+      const date = li.dataset.date;
+      // Passerat först: ett prov som varit ska gömmas som allt annat som varit.
+      if (date && date < todayIso) return "past";
+      if (li.dataset.kind === "prov") return "exams";
+      if (!date) return "info";
+      if (date <= weekEndIso) return "week";
+      return li.dataset.kind === "info" ? "info" : "later";
+    }
+
+    function regroup(panel, words) {
+      const groups = {
+        week: panel.querySelector('.group[data-group="week"]'),
+        later: panel.querySelector('.group[data-group="later"]'),
+        exams: panel.querySelector('.group[data-group="exams"]'),
+        info: panel.querySelector('details[data-group="info"]'),
+      };
+
+      for (const li of panel.querySelectorAll("li[data-kind]")) {
+        const target = bucketFor(li);
+        if (target === "past") {
+          li.hidden = true;
+          continue;
+        }
+        li.hidden = false;
+        const list = groups[target] && groups[target].querySelector("ul");
+        if (list && li.parentElement !== list) list.append(li);
+      }
+
+      // Dagsrubriker byggs av JS, så de aldrig blir gamla.
+      const weekList = groups.week && groups.week.querySelector("ul");
+      if (weekList) {
+        for (const old of [...weekList.querySelectorAll("li.dayhead")]) old.remove();
+        const live = [...weekList.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
+        live.sort((a, b) => (a.dataset.date || "").localeCompare(b.dataset.date || ""));
+        let lastDate = null;
+        for (const li of live) {
+          weekList.append(li);
+          if (li.dataset.date !== lastDate) {
+            lastDate = li.dataset.date;
+            const head = document.createElement("li");
+            head.className = "dayhead";
+            const parts = lastDate.split("-").map(Number);
+            const wd = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay();
+            head.textContent = words.days[wd] + " " + parts[2] + "." + parts[1];
+            const days = daysFrom(lastDate);
+            const rel =
+              days === 0
+                ? words.today
+                : days === 1
+                  ? words.tomorrow
+                  : days > 0
+                    ? words.inDays(days)
+                    : null;
+            if (rel) {
+              const span = document.createElement("span");
+              span.className = "dayrel";
+              span.textContent = rel;
+              head.append(span);
+            }
+            weekList.insertBefore(head, li);
+          }
+        }
+        const empty = groups.week.querySelector(".empty");
+        if (empty) empty.hidden = live.length > 0;
+      }
+
+      for (const name of ["later", "exams"]) {
+        const g = groups[name];
+        if (!g) continue;
+        g.hidden = ![...g.querySelectorAll("li[data-kind]")].some((li) => !li.hidden);
+      }
+      if (groups.info) {
+        const live = [...groups.info.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
+        groups.info.hidden = live.length === 0;
+        const count = groups.info.querySelector(".count");
+        if (count) count.textContent = String(live.length);
+      }
+    }
 
     function renderDates(words) {
       for (const el of document.querySelectorAll(".rel[data-date]")) {
@@ -381,22 +478,31 @@ ${table(strings.fi)}
       }
     }
 
-    // En död körning ska ange sig själv i stället för att se aktuell ut.
     const stale = document.getElementById("stale");
     if (stale) stale.hidden = daysFrom(STAMP) > -3;
 
     function setLang(lang) {
-      const table = STRINGS[lang] || STRINGS.sv;
+      const tableFor = STRINGS[lang] || STRINGS.sv;
+      const words = WORDS[lang] || WORDS.sv;
       for (const el of document.querySelectorAll("[data-t]")) {
-        const value = table[el.dataset.t];
+        const value = tableFor[el.dataset.t];
         if (typeof value === "string") el.textContent = value;
       }
       for (const el of document.querySelectorAll("[data-t-label]")) {
-        const value = table[el.dataset.tLabel];
+        const value = tableFor[el.dataset.tLabel];
         if (typeof value === "string") el.setAttribute("aria-label", value);
       }
-      renderDates(WORDS[lang] || WORDS.sv);
       document.documentElement.lang = lang;
+      renderDates(words);
+      for (const panel of document.querySelectorAll("section.kid")) regroup(panel, words);
+      // Det gemensamma bandet har inga fack, men passerat ska gömmas där också.
+      const shared = document.querySelector(".shared");
+      if (shared) {
+        for (const li of shared.querySelectorAll("li[data-date]")) {
+          li.hidden = li.dataset.date < todayIso;
+        }
+        shared.hidden = ![...shared.querySelectorAll("li")].some((li) => !li.hidden);
+      }
       for (const button of document.querySelectorAll(".lang button")) {
         button.setAttribute("aria-pressed", String(button.dataset.lang === lang));
       }
@@ -414,12 +520,12 @@ ${table(strings.fi)}
     // --- Barnväljare ---
     const picker = document.querySelector(".picker");
     const select = document.getElementById("kid");
-    const faces = [...document.querySelectorAll(".face")];
+    const faceList = [...document.querySelectorAll(".face")];
     const panels = [...document.querySelectorAll("section.kid")];
     const kids = panels.map((panel) => panel.dataset.kid);
 
     function setKid(kid) {
-      for (const face of faces) face.hidden = face.dataset.kid !== kid;
+      for (const face of faceList) face.hidden = face.dataset.kid !== kid;
       for (const panel of panels) panel.hidden = panel.dataset.kid !== kid;
       picker.dataset.kid = kid;
       select.value = kid;
@@ -430,28 +536,21 @@ ${table(strings.fi)}
     const savedKid = store.get(KID_KEY, null);
     setKid(kids.includes(savedKid) ? savedKid : kids[0]);
 
-    // Avklarat sparas per läsare, oberoende av språk och av vilket barn som visas.
-    let done = {};
-    try {
-      done = JSON.parse(store.get(DONE_KEY, "{}")) || {};
-    } catch (e) {
-      done = {};
-    }
-    for (const box of document.querySelectorAll('input[type="checkbox"][data-id]')) {
-      if (done[box.dataset.id]) box.checked = true;
-      box.addEventListener("change", () => {
-        done[box.dataset.id] = box.checked;
-        store.set(DONE_KEY, JSON.stringify(done));
-      });
-    }
   })();
 </script>
 `;
 
 writeFileSync(path.join(here, "oversikt.html"), page);
 
-const counts = data.children.map((c) => `${c.name}: ${c.items.length}+${c.exams.length}`).join(", ");
-console.log(
-  `site/oversikt.html — ${Object.keys(strings.sv).length} texter x2, ${counts}, ` +
-    `${data.shared.length} gemensamma, stamp ${data.stamp}`,
-);
+const counts = data.children
+  .map((c) => {
+    const b = { week: 0, later: 0, info: 0 };
+    for (const item of c.items) {
+      const bucket = bucketOf(item);
+      if (bucket in b) b[bucket] += 1;
+    }
+    return `${c.name} ${b.week}v/${b.later}fram/${c.exams.length}prov/${b.info}info`;
+  })
+  .join(" · ");
+
+console.log(`site/oversikt.html — ${Object.keys(strings.sv).length} texter x2 — ${counts}`);
