@@ -333,6 +333,7 @@ export async function run(deps: Deps): Promise<State> {
   // Steg 4: extrahera. Enda steget som kostar något.
   const usage: Usage[] = [];
   const rescuedFor: string[] = [];
+  let rescues = 0;
   // Skilda listor med flit: publiceringsbeslutet hör till meddelandena. Delade
   // räknare gjorde att sex anslagsfel kunde stoppa sex lyckade meddelanden.
   const msgFailures: string[] = [];
@@ -376,7 +377,10 @@ export async function run(deps: Deps): Promise<State> {
       const sentAt = new Date(`${dayOf(message.timestamp)}T12:00:00+03:00`);
       const result = await extractOne(body.text + attached, { sentAt, now, household: facts });
       usage.push(...result.usage);
-      rescuedFor.push(...result.rescuedFor);
+      // ?? [] med flit: ett saknat fält kastade inuti try och brände budget.
+      const reasons = result.rescuedFor ?? [];
+      rescuedFor.push(...reasons);
+      if (reasons.length) rescues += 1;
       if (result.dropped.length) {
         console.warn(`  [${id}] släppte ${result.dropped.length} post(er): ${result.dropped.join("; ")}`);
       }
@@ -478,7 +482,10 @@ export async function run(deps: Deps): Promise<State> {
           { sentAt, now, household: facts },
         );
         usage.push(...result.usage);
-        rescuedFor.push(...result.rescuedFor);
+        // ?? [] med flit: ett saknat fält kastade inuti try och brände budget.
+      const reasons = result.rescuedFor ?? [];
+      rescuedFor.push(...reasons);
+      if (reasons.length) rescues += 1;
         push(
           freshItems,
           child.prefix,
@@ -576,7 +583,10 @@ export async function run(deps: Deps): Promise<State> {
           { sentAt, now, household: facts },
         );
         usage.push(...result.usage);
-        rescuedFor.push(...result.rescuedFor);
+        // ?? [] med flit: ett saknat fält kastade inuti try och brände budget.
+      const reasons = result.rescuedFor ?? [];
+      rescuedFor.push(...reasons);
+      if (reasons.length) rescues += 1;
         push(
           freshItems,
           child.prefix,
@@ -719,7 +729,10 @@ export async function run(deps: Deps): Promise<State> {
   for (const item of [...state.shared, ...state.children.flatMap((c) => c.items)]) {
     if (!item.date) continue;
     const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
-    if ((weekday !== 0 && weekday !== 6) || WEEKEND_WORDS.test(item.quote)) continue;
+    // Samma fält som violations() tittar på, så en arbetslördag inte tappar
+    // sitt datum tyst efter att ha klarat valideringen.
+    if (weekday !== 0 && weekday !== 6) continue;
+    if (WEEKEND_WORDS.test(item.quote) || WEEKEND_WORDS.test(item.sv.text)) continue;
     console.warn(`  helgdatum ${item.date} på "${item.sv.text}" — datumet tas bort`);
     item.date = "";
     item.sv.dateLabel = "";
@@ -736,7 +749,7 @@ export async function run(deps: Deps): Promise<State> {
     `data/oversikt.json — ${state.children.length} barn, ${total} poster, ` +
       `${state.children.reduce((s, c) => s + c.exams.length, 0)} prov, stamp ${state.stamp}`,
   );
-  console.log(summariseUsage(usage, rescuedFor));
+  console.log(summariseUsage(usage, rescuedFor, rescues));
 
   return state;
 }

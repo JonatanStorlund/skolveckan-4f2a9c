@@ -364,7 +364,7 @@ export async function extract(message: string, options: ExtractOptions): Promise
 }
 
 /** Sammanfattar en körnings kostnad för loggen. */
-export function summariseUsage(all: Usage[], rescuedFor: string[] = []): string {
+export function summariseUsage(all: Usage[], rescuedFor: string[] = [], rescues = 0): string {
   const total = all.reduce(
     (sum, u) => ({
       input: sum.input + u.inputTokens,
@@ -375,11 +375,17 @@ export function summariseUsage(all: Usage[], rescuedFor: string[] = []): string 
     { input: 0, output: 0, cached: 0, cost: 0 },
   );
   const models = [...new Set(all.map((u) => u.model))].join(", ") || "inga anrop";
-  const rescues = rescuedFor.length
-    ? ` — omkörningar utlösta av: ${[...new Set(rescuedFor)].join(", ")} (${rescuedFor.length} st)`
+  const tally = new Map<string, number>();
+  for (const kind of rescuedFor) tally.set(kind, (tally.get(kind) ?? 0) + 1);
+  const breakdown = [...tally]
+    .sort((a, b) => b[1] - a[1])
+    .map(([kind, n]) => `${kind} x${n}`)
+    .join(", ");
+  const rescueText = rescues
+    ? ` — ${rescues} omkörning(ar): ${breakdown}`
     : "";
   return (
     `${all.length} modellanrop (${models}) — ${total.input} in, ${total.output} ut, ` +
-    `${total.cached} ur cachen, ca $${total.cost.toFixed(4)}${rescues}`
+    `${total.cached} ur cachen, ca $${total.cost.toFixed(4)}${rescueText}`
   );
 }
