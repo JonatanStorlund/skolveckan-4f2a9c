@@ -150,10 +150,13 @@ läst.
 gemensamt band för det som gick till hela kommunen, en spalt per barn, kryssrutor
 för det som går att göra klart.
 
-Barnen ligger i **flikar** med foto, klass och skola i flikhuvudet — bättre än två
-spalter på en telefon, och det syns direkt vems lista man tittar på. Valet av flik
-sparas lokalt, tangentbord fungerar (piltangenter), och panelerna är riktiga
-`tabpanel`-element så skärmläsare hänger med.
+Sidan är **mobile first**: basreglerna är telefonens, och `@media (min-width: 40rem)`
+lägger till luft när det finns plats. Ingen rubrik och ingen ingress — på en telefon
+är den plats som går till att förklara sidan plats som inte visar ärenden.
+
+Barnet väljs med en **`<select>`**, inte flikar: en rad i stället för två kort, och
+telefonen får sin egen inbyggda väljare. Fotot vid väljaren byts med valet och bär
+barnets accentfärg vidare till select:en. Valet sparas lokalt.
 
 Fotona kommer ur Wilma, `/!<prefix>/photo` (JPEG, 130×139), och bäddas in som
 data-URI:er så sidan är självbärande. **Den publika utgåvan ligger i ett publikt
