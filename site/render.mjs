@@ -146,6 +146,7 @@ const WEEK_END = (() => {
 /** Samma indelning som webbläsaren gör; här bara för utgångsläget. */
 function bucketOf(item) {
   if (item.date && item.date < TODAY) return "past";
+  if (item.kind === "laxa") return "laxor";
   if (item.kind === "bokning") return "booking";
   if (!item.date) return "info";
   // info hamnar alltid i dropdownen, även daterad: en upplysning är inte en
@@ -238,10 +239,10 @@ function dayHeadMarkup(iso) {
 }
 
 /** Tak på veckan: sidan finns för att vara kort. Resten hamnar i dropdownen. */
-const WEEK_LIMIT = 7;
+const WEEK_LIMIT = 4;
 
 function childMarkup(child, first) {
-  const buckets = { week: [], booking: [], later: [], exams: [], info: [] };
+  const buckets = { week: [], booking: [], laxor: [], later: [], exams: [], info: [] };
   const items = dedupe(child.items);
 
   const weekAll = items
@@ -283,6 +284,15 @@ function childMarkup(child, first) {
     `${esc(strings.sv[emptyKey])}</p>\n` +
     `        <p class="empty shared-hint" data-t="${hintKey}" hidden>${esc(strings.sv[hintKey])}</p>\n`;
 
+  const laxorSection =
+    buckets.laxor.length === 0
+      ? ""
+      : `      <details class="group" data-group="laxor">\n` +
+        `        <summary>${text("span", "glabel", "Läxor", "Läksyt", "g")}` +
+        ` <span class="count">${buckets.laxor.length}</span></summary>\n` +
+        `        <ul>${buckets.laxor.join("")}</ul>\n` +
+        `      </details>`;
+
   const infoSection =
     buckets.info.length === 0
       ? ""
@@ -312,6 +322,7 @@ function childMarkup(child, first) {
     group("booking", "Boka tid", "Varaa aika", buckets.booking),
     group("later", "Viktiga datum", "Tärkeät päivät", buckets.later),
     group("exams", "Prov", "Kokeet", buckets.exams),
+    laxorSection,
     infoSection,
     unclear,
     `    </section>`,
@@ -531,6 +542,7 @@ ${table(strings.fi)}
       // Passerat först: ett prov som varit ska gömmas som allt annat som varit.
       if (date && date < todayIso) return "past";
       if (li.dataset.kind === "prov") return "exams";
+      if (li.dataset.kind === "laxa") return "laxor";
       if (li.dataset.kind === "bokning") return "booking";
       // Speglar bucketOf() i render.mjs. Avvek de, flyttade omgrupperingen
       // tillbaka det renderaren just hade sorterat bort.
@@ -553,6 +565,7 @@ ${table(strings.fi)}
         booking: panel.querySelector('.group[data-group="booking"]'),
         later: panel.querySelector('.group[data-group="later"]'),
         exams: panel.querySelector('.group[data-group="exams"]'),
+        laxor: panel.querySelector('details[data-group="laxor"]'),
         info: panel.querySelector('details[data-group="info"]'),
       };
 
@@ -624,10 +637,12 @@ ${table(strings.fi)}
         if (!g) continue;
         g.hidden = ![...g.querySelectorAll("li[data-kind]")].some((li) => !li.hidden);
       }
-      if (groups.info) {
-        const live = [...groups.info.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
-        groups.info.hidden = live.length === 0;
-        const count = groups.info.querySelector(".count");
+      for (const name of ["laxor", "info"]) {
+        const g = groups[name];
+        if (!g) continue;
+        const live = [...g.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
+        g.hidden = live.length === 0;
+        const count = g.querySelector(".count");
         if (count) count.textContent = String(live.length);
       }
     }
