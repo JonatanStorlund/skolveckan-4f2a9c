@@ -135,6 +135,26 @@ läst.
 - **Oofficiell API.** Wilma har ingen öppen API för vårdnadshavare — det här är
   samma anrop som webbklienten gör. Det kan sluta fungera när Visma ändrar något.
 
+## Väg 3: delad sida
+
+`site/oversikt.html` är veckans läge som en sida att dela med den andra föräldern:
+gemensamt band för det som gick till hela kommunen, en spalt per barn, kryssrutor
+för det som går att göra klart.
+
+Publicerad här: https://claude.ai/code/artifact/438f4f44-9c9c-42d1-8360-6a873831eda0
+
+Sidan är privat tills den delas från sidans egen delningsmeny. För att uppdatera
+den: ändra filen och publicera **samma filsökväg** igen — då byts innehållet på
+samma adress. En ny sökväg ger en ny adress.
+
+Två saker som håller sidan hederlig när den blir gammal: relativa dagar ("om 4
+dagar") räknas i webbläsaren utifrån `data-date`, och förbrukade tider tas bort i
+stället för att stå kvar som kommande. Kryssen sparas per läsare i webbläsaren, så
+den andra föräldern ser sina egna kryss, inte dina.
+
+Innehåller barnens förnamn, skolor och klasser — men inga efternamn och inga
+lärartelefonnummer, även när meddelandena hade dem.
+
 ## Övriga vägar in
 
 - **E-postvidarebefordran.** Slå på notiser i Wilmas inställningar och se om ditt

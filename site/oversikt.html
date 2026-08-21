@@ -1,0 +1,568 @@
+<title>Skolveckan hemma</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+/>
+
+<style>
+  :root {
+    /* Ljus palett — kyliga, gröntonade neutraler mot barnens två accenter. */
+    --ground: #eaeeec;
+    --surface: #ffffff;
+    --surface-sunk: #e2e7e4;
+    --ink: #16211f;
+    --ink-soft: #47554f;
+    --ink-mute: #6f7d76;
+    --line: #d2dad6;
+    --line-firm: #b9c4bf;
+    --colin: #2f6f7a;
+    --colin-wash: #e4eef0;
+    --nellie: #8a4b6b;
+    --nellie-wash: #f2e7ed;
+    --urgent: #a9491a;
+    --urgent-wash: #f8e8de;
+    --done: #5c7a63;
+
+    --display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+    --body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #121917;
+      --surface: #1a2320;
+      --surface-sunk: #141d1a;
+      --ink: #e6ebe8;
+      --ink-soft: #b3c0ba;
+      --ink-mute: #8a9791;
+      --line: #2a3632;
+      --line-firm: #3d4b46;
+      --colin: #7dc0cb;
+      --colin-wash: #1c2e31;
+      --nellie: #d193b0;
+      --nellie-wash: #2e2028;
+      --urgent: #e59a6d;
+      --urgent-wash: #33231a;
+      --done: #8fae95;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #121917;
+    --surface: #1a2320;
+    --surface-sunk: #141d1a;
+    --ink: #e6ebe8;
+    --ink-soft: #b3c0ba;
+    --ink-mute: #8a9791;
+    --line: #2a3632;
+    --line-firm: #3d4b46;
+    --colin: #7dc0cb;
+    --colin-wash: #1c2e31;
+    --nellie: #d193b0;
+    --nellie-wash: #2e2028;
+    --urgent: #e59a6d;
+    --urgent-wash: #33231a;
+    --done: #8fae95;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: clamp(1.25rem, 4vw, 3rem) clamp(1rem, 4vw, 2rem) 4rem;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .board {
+    max-width: 60rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* --- Sidhuvud --- */
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(1.85rem, 5.5vw, 2.6rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    color: var(--ink-soft);
+    max-width: 34rem;
+    font-size: 0.95rem;
+  }
+
+  /* --- Gemensamt-bandet --- */
+
+  .shared {
+    background: var(--urgent-wash);
+    border: 1px solid var(--urgent);
+    border-radius: 3px;
+    padding: 1rem 1.15rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem 1rem;
+  }
+
+  .shared .tag {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--urgent);
+    flex: none;
+    width: 100%;
+  }
+
+  .shared .headline {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.15rem, 3.5vw, 1.4rem);
+    letter-spacing: -0.01em;
+  }
+
+  .shared .note {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    width: 100%;
+  }
+
+  /* --- Barnkolumner --- */
+
+  .kids {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .kid {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 1.1rem 1.15rem 1.25rem;
+  }
+
+  .kid[data-kid="colin"] {
+    --accent: var(--colin);
+    --wash: var(--colin-wash);
+  }
+
+  .kid[data-kid="nellie"] {
+    --accent: var(--nellie);
+    --wash: var(--nellie-wash);
+  }
+
+  .kid h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 1.3rem;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--accent);
+  }
+
+  .kid .where {
+    font-size: 0.82rem;
+    color: var(--ink-mute);
+    margin-bottom: 0.9rem;
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    gap: 0.1rem 0.55rem;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--line);
+    align-items: start;
+  }
+
+  li:first-child {
+    border-top: 0;
+  }
+
+  .icon {
+    font-size: 0.95rem;
+    line-height: 1.45;
+    text-align: center;
+    user-select: none;
+  }
+
+  .what {
+    font-weight: 500;
+  }
+
+  .meta {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.2rem;
+  }
+
+  .when {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    background: var(--wash);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .rel {
+    font-size: 0.74rem;
+    color: var(--ink-mute);
+  }
+
+  .rel[data-state="soon"] {
+    color: var(--urgent);
+    font-weight: 600;
+  }
+
+  .rel[data-state="past"] {
+    text-decoration: line-through;
+  }
+
+  .caveat {
+    grid-column: 2;
+    font-size: 0.8rem;
+    color: var(--ink-mute);
+    font-style: italic;
+    margin-top: 0.15rem;
+  }
+
+  /* Kryssrutor: bara på det som faktiskt går att göra klart. */
+  label.what {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  input[type="checkbox"] {
+    appearance: none;
+    flex: none;
+    width: 0.95rem;
+    height: 0.95rem;
+    margin: 0.22rem 0 0;
+    border: 1.5px solid var(--line-firm);
+    border-radius: 2px;
+    background: var(--surface);
+    cursor: pointer;
+    display: grid;
+    place-content: center;
+  }
+
+  input[type="checkbox"]::after {
+    content: "";
+    width: 0.5rem;
+    height: 0.28rem;
+    border-left: 2px solid var(--surface);
+    border-bottom: 2px solid var(--surface);
+    transform: rotate(-45deg) translateY(-0.05rem);
+    opacity: 0;
+  }
+
+  input[type="checkbox"]:checked {
+    background: var(--done);
+    border-color: var(--done);
+  }
+
+  input[type="checkbox"]:checked::after {
+    opacity: 1;
+  }
+
+  input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  li:has(input:checked) .what,
+  li:has(input:checked) .icon {
+    color: var(--ink-mute);
+  }
+
+  li:has(input:checked) label.what span {
+    text-decoration: line-through;
+  }
+
+  /* --- Oklart --- */
+
+  .unclear {
+    margin-top: 0.9rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--surface-sunk);
+    border-radius: 3px;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  .unclear strong {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 0.2rem;
+  }
+
+  /* --- Sidfot --- */
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+    font-size: 0.82rem;
+    color: var(--ink-mute);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  footer b {
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+
+<div class="board">
+  <header>
+    <p class="eyebrow" id="stamp">Läget fredag 21.8 · ur 11 Wilma-meddelanden</p>
+    <h1>Skolveckan hemma</h1>
+    <p class="standfirst">
+      Det läraren skrev i 700 ord, kokat ner till det som kräver något av oss. Kryssa
+      av när det är gjort.
+    </p>
+  </header>
+
+  <section class="shared" aria-labelledby="shared-title">
+    <p class="tag">Gäller båda</p>
+    <p class="headline" id="shared-title">Skoldagen slutar kl. 12.15</p>
+    <span class="when">tis 25.8</span>
+    <span class="rel" data-date="2026-08-25"></span>
+    <p class="note">
+      Lärarnas fortbildningseftermiddag i hela grundläggande utbildningen. Eftis
+      fungerar normalt för de anmälda.
+    </p>
+  </section>
+
+  <div class="kids">
+    <!-- Colin -->
+    <section class="kid" data-kid="colin">
+      <h2>Colin</h2>
+      <p class="where">Oxhamns skola · 7A</p>
+      <ul>
+        <li>
+          <span class="icon">✍️</span>
+          <label class="what"
+            ><input type="checkbox" data-id="colin-diet" /><span
+              >Gör dietanmälan på nytt</span
+            ></label
+          >
+          <p class="caveat">Gäller även er som anmält tidigare år. Länk på Wilmas inloggningssida.</p>
+        </li>
+        <li>
+          <span class="icon">🎒</span>
+          <label class="what"
+            ><input type="checkbox" data-id="colin-ukr" /><span
+              >Hemspråk i ukrainska börjar, mån 14.25–15.50</span
+            ></label
+          >
+          <div class="meta">
+            <span class="when">mån 25.8</span>
+            <span class="rel" data-date="2026-08-25"></span>
+          </div>
+          <p class="caveat">Bara om Colin läser ukrainska som hemspråk. Klassrum Panorama.</p>
+        </li>
+        <li>
+          <span class="icon">ℹ️</span>
+          <span class="what">Mobiler samlas in under första lektionen</span>
+          <p class="caveat">Återfås vid skoldagens slut. Nytt för läsåret.</p>
+        </li>
+        <li>
+          <span class="icon">ℹ️</span>
+          <span class="what">Livsåskådning åk 7 har ingen lärobok</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Nellie -->
+    <section class="kid" data-kid="nellie">
+      <h2>Nellie</h2>
+      <p class="where">Bonäs skola · 2b</p>
+      <ul>
+        <li>
+          <span class="icon">📍</span>
+          <span class="what">Skolfotografering</span>
+          <div class="meta">
+            <span class="when">tor–fre 10–11.9</span>
+            <span class="rel" data-date="2026-09-10"></span>
+          </div>
+        </li>
+        <li>
+          <span class="icon">✍️</span>
+          <label class="what"
+            ><input type="checkbox" data-id="nellie-foto" /><span
+              >Kryssa inte i kompisfoto på blanketten</span
+            ></label
+          >
+          <p class="caveat">Skolan tar inga kompisfoton, även om rutan finns.</p>
+        </li>
+        <li>
+          <span class="icon">🎒</span>
+          <label class="what"
+            ><input type="checkbox" data-id="nellie-ficka" /><span
+              >Töm plastfickan, lägg tillbaka den i väskan</span
+            ></label
+          >
+          <p class="caveat">Varje vecka — veckoplaneringen kommer den vägen.</p>
+        </li>
+        <li>
+          <span class="icon">🎒</span>
+          <label class="what"
+            ><input type="checkbox" data-id="nellie-leksaker" /><span
+              >Lämna leksakerna hemma</span
+            ></label
+          >
+          <p class="caveat">Penal, pennor, sudd och linjal räcker.</p>
+        </li>
+        <li>
+          <span class="icon">🎒</span>
+          <label class="what"
+            ><input type="checkbox" data-id="nellie-hjalm" /><span
+              >Kolla att cykelhjälmen sitter rätt</span
+            ></label
+          >
+        </li>
+        <li>
+          <span class="icon">ℹ️</span>
+          <span class="what">Hälsoundersökning åk 2 inom en månad</span>
+          <p class="caveat">Hör av dig via Wilma om något vaccin saknas.</p>
+        </li>
+      </ul>
+      <div class="unclear">
+        <strong>Oklart</strong>
+        Föräldramöte hålls i höst, men datum är inte bestämt — skolan väntar på
+        besked om invigning och öppet hus.
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <p>
+      <b>Snabbläst ur Wilma.</b> Varje rad kommer ur ett riktigt meddelande; inget är
+      tillagt. Tider som gällde vecka 34 är förbrukade och står inte kvar här.
+    </p>
+    <p>
+      Colin och Nellie har separata inkorgar i Wilma — därför en spalt var, och ett
+      gemensamt band för det som gick ut till hela kommunen.
+    </p>
+  </footer>
+</div>
+
+<script>
+  // Relativa dagar räknas i webbläsaren, så sidan åldras hederligt även om
+  // ingen uppdaterar den.
+  (function () {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const el of document.querySelectorAll(".rel[data-date]")) {
+      const target = new Date(el.dataset.date + "T00:00:00");
+      const days = Math.round((target - today) / 86400000);
+
+      let label, state;
+      if (days < 0) {
+        label = days === -1 ? "igår" : `${Math.abs(days)} dagar sedan`;
+        state = "past";
+      } else if (days === 0) {
+        label = "idag";
+        state = "soon";
+      } else if (days === 1) {
+        label = "imorgon";
+        state = "soon";
+      } else if (days <= 7) {
+        label = `om ${days} dagar`;
+        state = "soon";
+      } else {
+        label = `om ${days} dagar`;
+        state = "later";
+      }
+      el.textContent = label;
+      el.dataset.state = state;
+    }
+
+    // Avklarat sparas lokalt per läsare. Misslyckas lagringen (privat läge,
+    // blockerade kakor) fungerar rutorna ändå — de minns bara inte.
+    const KEY = "skolveckan.done";
+    let done = {};
+    try {
+      done = JSON.parse(localStorage.getItem(KEY) || "{}");
+    } catch (e) {
+      done = {};
+    }
+
+    for (const box of document.querySelectorAll('input[type="checkbox"][data-id]')) {
+      if (done[box.dataset.id]) box.checked = true;
+      box.addEventListener("change", function () {
+        done[box.dataset.id] = box.checked;
+        try {
+          localStorage.setItem(KEY, JSON.stringify(done));
+        } catch (e) {
+          /* ingen lagring tillgänglig — strunt samma */
+        }
+      });
+    }
+  })();
+</script>
