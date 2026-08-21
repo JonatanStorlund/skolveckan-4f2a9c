@@ -986,7 +986,11 @@
             weekList.insertBefore(head, li);
           }
         }
-        const sharedLive = [...document.querySelectorAll(".shared li")].some((li) => !li.hidden);
+        const sharedBand = document.querySelector(".shared");
+        const sharedLive =
+          Boolean(sharedBand) &&
+          !sharedBand.hidden &&
+          [...sharedBand.querySelectorAll("li")].some((li) => !li.hidden);
         const plain = groups.week.querySelector(".empty:not(.shared-hint)");
         const hint = groups.week.querySelector(".empty.shared-hint");
         if (plain) plain.hidden = live.length > 0 || sharedLive;
@@ -1049,8 +1053,8 @@
       }
       document.documentElement.lang = lang;
       renderDates(words);
-      for (const panel of document.querySelectorAll("section.kid")) regroup(panel, words);
-      // Det gemensamma bandet har inga fack, men passerat ska gömmas där också.
+      // Bandet först: regroup() läser dess synlighet för att avgöra om den tomma
+      // veckan ska peka nedåt, så ordningen är inte valfri.
       const shared = document.querySelector(".shared");
       if (shared) {
         for (const li of shared.querySelectorAll("li[data-date]")) {
@@ -1058,6 +1062,7 @@
         }
         shared.hidden = ![...shared.querySelectorAll("li")].some((li) => !li.hidden);
       }
+      for (const panel of document.querySelectorAll("section.kid")) regroup(panel, words);
       for (const button of document.querySelectorAll(".lang button")) {
         button.setAttribute("aria-pressed", String(button.dataset.lang === lang));
       }

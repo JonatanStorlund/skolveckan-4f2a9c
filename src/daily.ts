@@ -72,6 +72,8 @@ export interface ChildBlock {
 
 export interface State {
   stamp: string;
+  /** Misslyckade försök per källa ("m123" meddelande, "n45" anslag). */
+  attempts?: Record<string, number>;
   messageCount: number;
   seen: number[];
   /** Lästa anslag. Egen lista: anslags-id kan kollidera med meddelande-id. */
@@ -125,9 +127,23 @@ async function loadHousehold(): Promise<Record<string, string[]>> {
   }
 }
 
-async function loadState(): Promise<State | null> {
+async function loadState(today: string): Promise<State | null> {
   try {
-    return JSON.parse(await readFile(statePath, "utf8")) as State;
+    const state = JSON.parse(await readFile(statePath, "utf8")) as State;
+    // Ett semantiskt trasigt addedOn hade fått merge() att kasta utanför all
+    // felhantering, varje dygn, utan väg tillbaka annat än att rensa cachen.
+    const repair = (rows: { addedOn?: string }[]) => {
+      for (const row of rows) {
+        if (!row.addedOn || !/^\d{4}-\d{2}-\d{2}$/.test(row.addedOn)) row.addedOn = today;
+      }
+    };
+    repair(state.shared ?? []);
+    repair(state.sharedUncertain ?? []);
+    for (const child of state.children ?? []) {
+      repair(child.items ?? []);
+      repair(child.uncertain ?? []);
+    }
+    return state;
   } catch {
     return null;
   }
@@ -187,15 +203,16 @@ async function main(): Promise<void> {
 
   const now = new Date();
   const today = isoToday(now);
-  const previous = await loadState();
+  const previous = await loadState(today);
   const household = await loadHousehold();
   const seen = new Set(previous?.seen ?? []);
   // Ett meddelande som gett en post är läst, även om seen-listan tappat det.
   for (const item of [
     ...(previous?.shared ?? []),
-    ...(previous?.children ?? []).flatMap((c) => c.items),
+    ...(previous?.sharedUncertain ?? []),
+    ...(previous?.children ?? []).flatMap((c) => [...c.items, ...c.uncertain]),
   ]) {
-    if (typeof item.messageId === "number") seen.add(item.messageId);
+    if (typeof item.messageId === "number" && item.messageId > 0) seen.add(item.messageId);
   }
 
   const wilma = new Wilma(baseUrl, username, password);
@@ -231,11 +248,15 @@ async function main(): Promise<void> {
       const message = (inboxes.get(prefix) ?? []).find((m) => m.id === id)!;
       return { id, prefix, message };
     })
-    .filter(({ message }) => {
-      const day = dayOf(message.timestamp);
-      return day !== "" && daysBetween(day, today) <= LOOKBACK_DAYS;
+    .filter(({ id, message }) => {
+      try {
+        return daysBetween(dayOf(message.timestamp), today) <= LOOKBACK_DAYS;
+      } catch (error) {
+        console.warn(`  [${id}] hoppar över: ${error instanceof Error ? error.message : error}`);
+        return false;
+      }
     })
-    .filter(({ id }) => !seen.has(id))
+    .filter(({ id }) => !seen.has(id) && !exhausted(`m${id}`))
     .sort((a, b) => b.message.timestamp.localeCompare(a.message.timestamp));
 
   const toExtract = candidates.slice(0, MAX_NEW_PER_RUN);
@@ -248,8 +269,23 @@ async function main(): Promise<void> {
   console.log(`${toExtract.length} meddelanden att extrahera, ${seen.size} redan sedda.`);
 
   // Steg 4: extrahera. Enda steget som kostar något.
+  // Ett meddelande som aldrig kan lyckas — för långt för max_tokens, säg — låg
+  // tidigare och köptes om varje dygn i all evighet.
+  const attempts: Record<string, number> = { ...(previous?.attempts ?? {}) };
+  const MAX_ATTEMPTS = 3;
+  const bumpAttempt = (key: string) => {
+    attempts[key] = (attempts[key] ?? 0) + 1;
+    if (attempts[key] >= MAX_ATTEMPTS) {
+      console.warn(`  ${key} har fallit ${attempts[key]} gånger — ger upp om den.`);
+    }
+  };
+  const exhausted = (key: string) => (attempts[key] ?? 0) >= MAX_ATTEMPTS;
+
   const usage: Usage[] = [];
-  const failures: string[] = [];
+  // Skilda listor med flit: publiceringsbeslutet hör till meddelandena. Delade
+  // räknare gjorde att sex anslagsfel kunde stoppa sex lyckade meddelanden.
+  const msgFailures: string[] = [];
+  const noticeFailures: string[] = [];
   const freshItems = new Map<string, Item[]>();  // nyckel: prefix eller "shared"
   const freshUnclear = new Map<string, Unclear[]>();
   const push = <T>(map: Map<string, T[]>, key: string, values: T[]) =>
@@ -310,7 +346,8 @@ async function main(): Promise<void> {
     } catch (error) {
       // Meddelandet läggs medvetet INTE i seen: nästa körning får försöka igen.
       // Men de som redan lyckats ska inte kastas bort med det.
-      failures.push(`[${id}] ${message.subject}: ${error instanceof Error ? error.message : error}`);
+      msgFailures.push(`[${id}] ${message.subject}: ${error instanceof Error ? error.message : error}`);
+      bumpAttempt(`m${id}`);
       console.error(`  [${id}] FEL, hoppar över: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -318,8 +355,13 @@ async function main(): Promise<void> {
   // Anslagstavlan. Mest permanenta blanketter och instruktioner, så bara
   // dagsaktuella anslag läses — resten skulle kosta tokens utan att säga något.
   const seenNotices = new Set(previous?.seenNotices ?? []);
+  // Härled på samma sätt som seen, så listan inte kan glida ifrån innehållet.
+  for (const item of [...(previous?.children ?? []).flatMap((c) => c.items)]) {
+    if (typeof item.messageId === "number" && item.messageId < 0) seenNotices.add(-item.messageId);
+  }
+  let noticeBudget = MAX_NOTICES_PER_RUN;
+
   for (const child of children) {
-    let read = 0;
     let notices: Awaited<ReturnType<Wilma["notices"]>> = [];
     try {
       notices = await wilma.notices(child.prefix);
@@ -328,11 +370,18 @@ async function main(): Promise<void> {
       continue;
     }
 
-    for (const notice of notices) {
-      if (read >= MAX_NOTICES_PER_RUN) break;
-      if (!notice.date || seenNotices.has(notice.id)) continue;
-      if (daysBetween(notice.date, today) > LOOKBACK_DAYS) continue;
+    // Skär listan FÖRE loopen: annars räknade bara lyckade försök mot taket och
+    // tjugo trasiga anslag kunde betala för fyrtio modellanrop.
+    const candidates = notices.filter((notice) => {
+      if (!notice.date || seenNotices.has(notice.id) || exhausted(`n${notice.id}`)) return false;
+      const age = daysBetween(notice.date, today);
+      // Nedre gräns också: ett anslag kan inte vara publicerat i framtiden, och
+      // ett framtida avsändningsdatum ger modellen en orimlig referens.
+      return age >= 0 && age <= LOOKBACK_DAYS;
+    });
 
+    for (const notice of candidates.slice(0, noticeBudget)) {
+      noticeBudget -= 1;
       try {
         const body = await wilma.readNotice(child.prefix, notice.id);
         if (!body.text.trim()) {
@@ -364,13 +413,23 @@ async function main(): Promise<void> {
             addedOn: today,
           })),
         );
+        push(
+          freshUnclear,
+          child.prefix,
+          result.uncertain.map((u) => ({
+            sv: u.sv,
+            fi: u.fi,
+            messageId: -notice.id,
+            addedOn: today,
+          })),
+        );
         seenNotices.add(notice.id);
-        read += 1;
         console.log(
           `  anslag [${notice.id}] ${notice.title.slice(0, 50)} → ${result.items.length} poster (${child.name})`,
         );
       } catch (error) {
-        failures.push(`anslag [${notice.id}]: ${error instanceof Error ? error.message : error}`);
+        noticeFailures.push(`anslag [${notice.id}]: ${error instanceof Error ? error.message : error}`);
+        bumpAttempt(`n${notice.id}`);
       }
     }
   }
@@ -417,6 +476,7 @@ async function main(): Promise<void> {
     messageCount: [...owners.keys()].length,
     seen: [...seen].sort((a, b) => a - b),
     seenNotices: [...seenNotices].sort((a, b) => a - b),
+    attempts,
     shared: merge(previous?.shared ?? [], freshItems.get("shared") ?? []),
     sharedUncertain: mergeUnclear(previous?.sharedUncertain ?? [], freshUnclear.get("shared") ?? []),
     children: children.map((child) => {
@@ -443,13 +503,16 @@ async function main(): Promise<void> {
       `${state.children.reduce((s, c) => s + c.exams.length, 0)} prov, stamp ${state.stamp}`,
   );
   console.log(summariseUsage(usage));
-  if (failures.length) {
-    console.error(`\n${failures.length} meddelande(n) kunde inte läsas:\n  ${failures.join("\n  ")}`);
-    // Föll varje enskilt försök är något systematiskt fel — då ska jobbet falla
-    // så att gårdagens sida står kvar och mejlet kommer.
-    if (failures.length === toExtract.length && toExtract.length > 0) {
-      throw new Error("Samtliga extraheringar föll — publicerar inget.");
-    }
+  for (const [label, list] of [
+    ["meddelande", msgFailures],
+    ["anslag", noticeFailures],
+  ] as const) {
+    if (list.length) console.error(`\n${list.length} ${label} kunde inte läsas:\n  ${list.join("\n  ")}`);
+  }
+  // Bara meddelandena avgör om sidan får publiceras. Föll varje enskilt är felet
+  // systematiskt, och då ska gårdagens sida stå kvar och mejlet komma.
+  if (toExtract.length > 0 && msgFailures.length === toExtract.length) {
+    throw new Error("Samtliga meddelanden föll — publicerar inget.");
   }
 }
 

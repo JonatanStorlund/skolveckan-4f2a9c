@@ -49,7 +49,8 @@ const fi = entriesOf("fi");
 
 // Tom sträng på ena språket och text på det andra är inte paritet — det var en
 // verklig lucka: en not fanns på finska och lyste tom på svenska.
-const isEmpty = (value) => value === undefined || /^""\s*,?$/.test(value);
+// Whitespace räknas som tomt, precis som violations() i src/extract.ts gör.
+const isEmpty = (value) => value === undefined || /^"\s*"\s*,?$/.test(value);
 const missing = [
   ...[...sv.keys()].filter((k) => !fi.has(k)).map((k) => `fi saknar ${k}`),
   ...[...fi.keys()].filter((k) => !sv.has(k)).map((k) => `sv saknar ${k}`),

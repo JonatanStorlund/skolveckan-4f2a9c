@@ -282,6 +282,25 @@ check("gemensamma bandet göms när dess datum passerat", () => {
   assert.equal(shared.hidden, true, "tomt band tar fortfarande plats");
 });
 
+check("tomma veckan pekar på bandet redan vid första laddningen", () => {
+  // Ordningsbuggen: bandet gömdes efter regroup, så puffen pekade på en sektion
+  // som inte fanns förrän någon råkade byta språk.
+  const w = open("2026-08-26");
+  for (const panel of w.document.querySelectorAll("section.kid")) {
+    const week = panel.querySelector('.group[data-group="week"]');
+    const live = [...week.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
+    if (live.length > 0) continue;
+    const hint = week.querySelector(".empty.shared-hint");
+    const shared = w.document.querySelector(".shared");
+    const bandLive = shared && !shared.hidden;
+    assert.equal(
+      hint.hidden,
+      !bandLive,
+      `puffen mot bandet är ${hint.hidden ? "gömd" : "synlig"} men bandet är ${bandLive ? "synligt" : "gömt"}`,
+    );
+  }
+});
+
 console.log(results.join("\n"));
 console.log(
   process.exitCode

@@ -277,19 +277,21 @@ export class Wilma {
     const scope = mainStart === -1 ? html : html.slice(mainStart);
 
     const found: Notice[] = [];
-    let currentDate = "";
-    // Datumrubrik och anslag kommer växelvis: <h2>16.8.</h2> sedan <h3>titel</h3>.
-    const pattern =
-      /<h2[^>]*>\s*(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*<\/h2>|<h3>\s*([\s\S]*?)\s*<\/h3>[\s\S]{0,400}?href="[^"]*\/news\/(\d+)"/g;
+    // Blockindelning på <h2>-rubrikerna: varje block har sitt eget datum och sitt
+    // eget id. Att leta id "någonstans inom 400 tecken" parade ihop fel saker.
+    const blocks = scope.split(/(?=<h2[^>]*>\s*\d{1,2}\.\d{1,2}\.)/);
+    for (const block of blocks) {
+      const head = /<h2[^>]*>\s*(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*<\/h2>/.exec(block);
+      if (!head) continue;
+      const date = isoFrom(Number(head[1]), Number(head[2]), head[3] ? Number(head[3]) : null);
 
-    for (const m of scope.matchAll(pattern)) {
-      if (m[1]) {
-        currentDate = isoFrom(Number(m[1]), Number(m[2]), m[3] ? Number(m[3]) : null);
-        continue;
+      for (const m of block.matchAll(
+        /<h3>\s*([\s\S]*?)\s*<\/h3>[\s\S]{0,400}?href="[^"]*\/news\/(\d+)"/g,
+      )) {
+        const title = stripTags(m[1] ?? "").replace(/\s+/g, " ").trim();
+        const id = Number(m[2]);
+        if (title && Number.isFinite(id) && id > 0) found.push({ id, title, date });
       }
-      const title = stripTags(m[4] ?? "").replace(/\s+/g, " ").trim();
-      const id = Number(m[5]);
-      if (title && Number.isFinite(id)) found.push({ id, title, date: currentDate });
     }
     return found;
   }
@@ -388,19 +390,37 @@ export class Wilma {
 // --- HTML-hjälpare ---------------------------------------------------------
 
 /**
- * Anslagen skriver "16.8." utan år. Året är innevarande, utom när det skulle
- * hamna långt i framtiden — då är anslaget från förra året.
+ * Anslagen skriver "16.8." utan år. Året är innevarande, utom när datumet då
+ * skulle hamna i framtiden — ett anslag kan inte vara publicerat i morgon.
+ *
+ * Den förra varianten gav 30 dagars framtidsmarginal, vilket lät ett anslag från
+ * förra september bli "nästa september" och därmed ett avsändningsdatum i
+ * framtiden. Modellen fick då veta att meddelandet var -29 dagar gammalt.
  */
 function isoFrom(day: number, month: number, year: number | null): string {
-  const now = new Date();
-  let resolved = year ?? now.getUTCFullYear();
   const pad = (n: number) => String(n).padStart(2, "0");
+  // Helsingfors, som alla andra datum i projektet — inte UTC.
+  const todayIso = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Helsinki" }).format(
+    new Date(),
+  );
+
+  // Date.parse rullar över orimliga dagar ("2026-02-31" blir 3 mars), så
+  // komponenterna kontrolleras var för sig.
+  const valid = (y: number): boolean => {
+    if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+    const d = new Date(Date.UTC(y, month - 1, day));
+    return d.getUTCFullYear() === y && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
+  };
+
+  let resolved = year ?? Number(todayIso.slice(0, 4));
+  if (!valid(resolved)) return "";
   let iso = `${resolved}-${pad(month)}-${pad(day)}`;
-  if (!year && Date.parse(`${iso}T00:00:00Z`) - now.getTime() > 30 * 86400000) {
+  if (!year && iso > todayIso) {
     resolved -= 1;
+    if (!valid(resolved)) return "";
     iso = `${resolved}-${pad(month)}-${pad(day)}`;
   }
-  return Number.isNaN(Date.parse(`${iso}T00:00:00Z`)) ? "" : iso;
+  return iso;
 }
 
 function decodeEntities(text: string): string {

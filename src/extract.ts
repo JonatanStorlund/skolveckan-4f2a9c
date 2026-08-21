@@ -114,13 +114,18 @@ function violations(result: Tldr, source: string): Violation[] {
     if (!item.text.trim() || !item.text_fi.trim()) {
       add("saknar text på båda språken");
     }
-    // Noter och datumetiketter måste också finnas på båda språken eller inget
-    // av dem — annars ser en finsk läsare en rad som en svensk saknar.
-    for (const [sv, fi, what] of [
-      [item.note, item.note_fi, "not"],
-      [item.date_label, item.date_label_fi, "datumetikett"],
-    ] as const) {
-      if (Boolean(sv.trim()) !== Boolean(fi.trim())) add(`${what} finns bara på ett språk`);
+    // Noter och datumetiketter måste finnas på båda språken eller inget av dem,
+    // annars ser en finsk läsare en rad som en svensk saknar. Men de lagas i kod
+    // i stället för att fälla posten: renderaren räknar ändå fram en etikett ur
+    // datumet, och en riktig läxa är för värdefull att kasta för ett kosmetiskt
+    // fält. Bara text/text_fi är oräddningsbart.
+    if (Boolean(item.note.trim()) !== Boolean(item.note_fi.trim())) {
+      item.note = "";
+      item.note_fi = "";
+    }
+    if (Boolean(item.date_label.trim()) !== Boolean(item.date_label_fi.trim())) {
+      item.date_label = "";
+      item.date_label_fi = "";
     }
     if (item.date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date) || Number.isNaN(Date.parse(item.date))) {
