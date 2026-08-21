@@ -27,6 +27,8 @@ const MAX_NEW_PER_RUN = 12;
 const UNDATED_TTL_DAYS = 21;
 /** Hur många meddelanden per barn vi tittar på. */
 const INBOX_LIMIT = 25;
+/** Tak på hämtad dokumenttext, så ett långt dokument inte sväller prompten. */
+const DOC_CHARS = 8000;
 
 export interface Localized {
   text: string;
@@ -104,6 +106,33 @@ async function loadState(): Promise<State | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Veckoplaneringen — där läxorna står — ligger som regel i ett Google-dokument
+ * som läraren länkar till. Delade dokument har en publik textexport, så den
+ * hämtas och läggs efter meddelandet innan extraheringen.
+ */
+async function followDocs(links: string[]): Promise<string> {
+  const parts: string[] = [];
+  for (const link of links) {
+    const id = /docs\.google\.com\/document\/d\/([A-Za-z0-9_-]+)/.exec(link)?.[1];
+    if (!id) continue;
+    try {
+      const response = await fetch(`https://docs.google.com/document/d/${id}/export?format=txt`, {
+        redirect: "follow",
+      });
+      if (!response.ok) {
+        console.warn(`  dokument ${id} gav ${response.status} — hoppar över.`);
+        continue;
+      }
+      const text = (await response.text()).slice(0, DOC_CHARS).trim();
+      if (text) parts.push(`\n\n--- Länkat dokument (${link}) ---\n${text}`);
+    } catch (error) {
+      console.warn(`  kunde inte hämta ${link}: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+  return parts.join("");
 }
 
 /** "2026-08-21 11:11" -> "2026-08-21" */
@@ -185,7 +214,9 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const result = await extract(body.text, now);
+    const attached = await followDocs(body.links);
+    if (attached) console.log(`  [${id}] följde ${body.links.length} länk(ar) till dokument`);
+    const result = await extract(body.text + attached, now);
     const target = (owners.get(id) ?? []).length > 1 ? "shared" : prefix;
 
     push(

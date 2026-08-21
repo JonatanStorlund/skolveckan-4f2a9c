@@ -29,6 +29,11 @@ export interface MessageSummary {
 
 export interface MessageBody extends MessageSummary {
   text: string;
+  /**
+   * Länkar i brödtexten. Lärarna lägger ofta veckoplaneringen i ett Google-
+   * dokument och länkar dit, så själva läxorna står inte i meddelandet.
+   */
+  links: string[];
 }
 
 export interface Exam {
@@ -316,6 +321,7 @@ export class Wilma {
       timestamp: fieldFromTable(html, ["lähetetty", "skickat", "sent"]),
       unread: false,
       text: extractBody(html),
+      links: extractLinks(html),
     };
   }
 }
@@ -404,6 +410,18 @@ function extractBody(html: string): string {
       .trim();
   }
   return "";
+}
+
+/** Länkar i brödtexten, absoluta och avdubblade. Wilmas egna sidor hoppas över. */
+function extractLinks(html: string): string[] {
+  const ck = /<div[^>]*class="[^"]*\bckeditor\b[^"]*"[^>]*>/i.exec(html);
+  const scope = ck ? sliceBalancedDiv(html, ck.index) : html;
+  const found = new Set<string>();
+  for (const m of scope.matchAll(/<a[^>]*href="([^"]+)"/gi)) {
+    const href = decodeEntities(m[1]!);
+    if (/^https?:\/\//i.test(href) && !/inschool\.fi/i.test(href)) found.add(href);
+  }
+  return [...found];
 }
 
 /** Plockar ett värde ur Wilmas "Etikett: värde"-tabell. */
