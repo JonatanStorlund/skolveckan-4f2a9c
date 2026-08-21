@@ -1,49 +1,63 @@
 ---
 name: wilma
-description: Hämta Wilma-meddelanden och koka ner dem till vad föräldern faktiskt måste göra — 3-5 rader på svenska, med datum uträknade och citat ur originalet. Använd när användaren frågar efter nya Wilma-meddelanden, vad som händer i skolan, vad barnen behöver ta med, eller ber om en sammanfattning av ett skolmeddelande.
+description: Hämta Wilma-meddelanden per barn och koka ner dem till vad föräldern faktiskt måste göra — några rader per barn på svenska, med datum uträknade och citat ur originalet. Använd när användaren frågar efter nya Wilma-meddelanden, vad som händer i skolan, vad barnen behöver ta med, eller ber om en översikt för ett eller flera barn.
 ---
 
 # Wilma TL;DR
 
 Läraren skriver 700 ord om höstlöv och gruppens utveckling. Föräldern behöver fyra
-rader. Den här skillen hämtar meddelandena och gör den omvandlingen.
+rader — och behöver veta vilket barn de gäller.
+
+## Viktigt: ett barn, en inkorg
+
+Ett vårdnadshavarkonto har en roll per barn, och **varje barn har sin egen inkorg**.
+Meddelande-id:n är rollspecifika, så `wilma_read` behöver alltid veta vilket barn.
+
+Samma id i två barns listor betyder att meddelandet gick till hela skolan eller
+kommunen. Läs det **en gång** och redovisa det under *Båda barnen* — inte två
+gånger.
 
 ## Arbetsgång
 
 1. **Läs reglerna.** Öppna `rules/extraction.md` i projektroten. Det är den
-   normerande specifikationen för extraheringen — följ den till punkt och pricka.
-   Samma fil driver webbappen, så den är alltid i takt.
+   normerande specifikationen för extraheringen. Samma fil driver webbappen, så
+   den är alltid i takt.
 
-2. **Hämta listan.** `get_messages` med `folder: "inbox"`. Standard är de 10
-   senaste; fler bara om användaren ber om det.
+2. **`wilma_children`** om du inte redan vet vilka barn som finns.
 
-3. **Välj vilka som ska läsas.**
-   - Utan närmare instruktion: alla olästa. Finns inga olästa, ta de 3 senaste och
-     säg att inget är oläst.
-   - Ber användaren om "nya" eller "den senaste": följ det.
-   - Nämner användaren ett barn, en klass eller ett ämne: filtrera på avsändare
-     och ämnesrad.
+3. **`wilma_messages`** — utan `child` för alla barn, med `child` när användaren
+   nämner ett namn. Standard är 10 per barn.
 
-4. **Läs varje valt meddelande** med `get_message`. Läs hela — det praktiska ligger
-   nästan alltid inbakat mitt i prosan, inte i slutet.
+4. **Välj vilka som ska läsas.**
+   - Utan närmare instruktion: alla olästa. Finns inga olästa, ta de 3 senaste per
+     barn och säg att inget är oläst.
+   - Nämner användaren ett barn, en klass eller ett ämne: filtrera på det.
+   - Id som förekommer hos flera barn läses en gång.
 
-5. **Extrahera enligt `rules/extraction.md`.** Kort sagt: bara det som står i
+5. **`wilma_read`** med `child` och `id` för varje valt meddelande. Läs hela — det
+   praktiska ligger nästan alltid inbakat mitt i prosan, inte i slutet.
+
+6. **Extrahera enligt `rules/extraction.md`.** Kort sagt: bara det som står i
    meddelandet, dagens datum som referens för "på tisdag", obligatoriskt citat per
    rad, oklarheter separerade i stället för gissade.
 
-6. **Markera som läst** — bara om användaren uttryckligen ber om det. Gör det
-   aldrig av eget initiativ; ett oläst meddelande är förälderns egen påminnelse.
-
 ## Utdataformat
 
-Ett block per meddelande. Är det bara ett, hoppa över rubriken.
+Gemensamt först, sedan ett avsnitt per barn. Har ett barn inget att göra, skriv det
+på en rad i stället för att utelämna barnet.
 
 ```
-3B · Annika (klassföreståndare) · 21.8
-  🎒 Ta med ytterkläder och stövlar        tis 26.8, buss 08:15
-  📍 Utflykt till Nanoq-museet, 5 € kontant  tis 26.8
-  ✍️ Returnera tillståndslappen            fre 29.8
-  🚫 Ingen skola, fortbildningsdag         mån 1.9
+Båda barnen
+  🕒 Skoldagen slutar kl. 12.15              tis 25.8
+
+Colin · Oxhamns skola, 7A
+  ✍️ Gör dietanmälan igen, även om ni gjort den förra året
+  ℹ️ Mobiler samlas in under första lektionen, återfås vid dagens slut
+
+Nellie · Bonäs skola, 2b
+  📍 Skolfotografering                       tor–fre 10–11.9
+  🎒 Töm plastfickan hemma, lägg tillbaka den i väskan
+  ⚠️ Oklart: föräldramöte i höst, datum inte bestämt ännu
 ```
 
 Ikoner: 🎒 ta med · ✍️ deadline · 🚫 ingen skola · 🕒 ändrad tid · 📍 evenemang ·
@@ -53,28 +67,29 @@ Regler för utdata:
 
 - **Svenska alltid**, även när meddelandet är på finska. Egennamn behålls som de står.
 - **Datum utskrivna**, aldrig "på tisdag". Räkna ut dem mot dagens datum.
+- **Förbrukat är inte aktuellt.** Gäller tiderna en vecka som redan gått, ta inte
+  upp dem som kommande — nämn på en rad att de är förbrukade, och behåll bara det
+  som återkommer (rutiner, vanor).
 - **Citaten visas inte som standard** — de finns för din egen kontroll av varje rad.
   Visa dem om användaren frågar "var står det?" eller verkar tvivla på en rad.
-- **Inget att göra är ett svar.** Skriv "Inget att göra — bara hälsningar och
-  klassinfo" i stället för att pressa fram punkter.
+- **Villkorat innehåll märks ut.** Gäller en rad bara vissa elever (hemspråk,
+  valfria ämnen, specialkost), skriv villkoret i raden i stället för att påstå att
+  det gäller barnet.
+- **Inget att göra är ett svar.** "Inget att göra — bara hälsningar och klassinfo"
+  slår framtvingade punkter.
 - **Oklarheter sist**, under `⚠️ Oklart:`, en rad per sak. Hitta aldrig på ett
   datum för att slippa den raden.
-- Har flera meddelanden samma ärende, slå ihop och nämn att det stod i två.
 
-## Kalenderfrågor
+## Att skicka meddelanden och markera som läst
 
-Frågar användaren om schema, lov eller lektionstider — inte om meddelanden — använd
-`get_schedule` eller `get_week_schedule` i stället, och svara kort på svenska.
-
-## Att skicka meddelanden
-
-`send_message` och `reply_to_message` skriver på riktigt till skolan i användarens
-namn. Använd dem bara på uttrycklig begäran, och visa alltid mottagare, ämne och
-hela texten för godkännande innan du skickar.
+Den här servern är läsbara-bara. Den kan inte skicka meddelanden, svara eller
+markera något som läst — säg det rakt ut om användaren ber om det, i stället för
+att leta efter en väg runt. Ett oläst meddelande är förälderns egen påminnelse.
 
 ## Om det inte fungerar
 
-- *"Authentication error"* — lösenordet i nyckelringen är fel eller utgånget:
+- *"Wilma nekade inloggningen"* — fel lösenord i nyckelringen:
   `security add-generic-password -U -s wilma-tldr -a "$WILMA_USERNAME" -w`
-- *Kräver ditt konto engångskod?* Servern stöder inte MFA. Säg det rakt ut i stället
-  för att försöka runt det.
+- *"Kontot kräver engångskod (MFA)"* — stöds inte än. Säg det rakt ut.
+- *"Hittade inga barn på startsidan"* — Wilma har ändrat sin HTML. Rollväljaren
+  parsas i `src/wilma.ts` (`children()`).

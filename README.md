@@ -45,7 +45,10 @@ annanstans än till din egen maskin och till Anthropics API.
 
 | Fil | Ansvar |
 | --- | --- |
-| `src/prompt.ts` | Extraktionsreglerna — verktygets faktiska kärna |
+| `rules/extraction.md` | Extraktionsreglerna — verktygets faktiska kärna, delad av båda vägarna |
+| `src/wilma.ts` | Wilma-klienten: inloggning, roller per barn, meddelanden |
+| `src/mcp.ts` | MCP-servern som Claude Code pratar med |
+| `src/prompt.ts` | Läser reglerna och bygger systemprompten för webbappen |
 | `src/extract.ts` | Anropet mot Claude, schema och sortering |
 | `src/server.ts` | HTTP, `.env`, felöversättning till svenska |
 | `public/index.html` | Gränssnittet och bokmärket |
@@ -69,11 +72,18 @@ prompt-cachen träffar mellan anrop.
 
 ## Väg 2: Wilma-MCP i Claude Code
 
-Hämtar meddelandena direkt ur Wilma, så du slipper klistra. Ingen Anthropic-nyckel
-behövs här — Claude är klienten och gör extraheringen själv.
+Hämtar meddelandena direkt ur Wilma, per barn. Ingen Anthropic-nyckel behövs här —
+Claude är klienten och gör extraheringen själv.
 
-MCP-servern är [jmccrosky/wilma-mcp](https://github.com/jmccrosky/wilma-mcp) (MIT),
-klonad till `vendor/` och startad via `bin/wilma-mcp`.
+### Ett barn, en inkorg
+
+Ett vårdnadshavarkonto har **en roll per barn**, var och en med eget prefix
+(`/!0425002`) och egen inkorg. En klient som bara använder den roll inloggningen
+råkar landa på ser därför bara ett av barnen — vilket är precis vad som händer med
+färdiga Wilma-klienter. `src/wilma.ts` läser rollväljaren från startsidan och
+hämtar per roll.
+
+Samma meddelande-id i två barns listor betyder att det gick till hela skolan.
 
 ### Inloggning
 
@@ -81,38 +91,49 @@ Lösenordet ligger i macOS-nyckelringen, aldrig i en fil. Kör en gång, i din e
 terminal så att prompten fungerar:
 
 ```bash
-security add-generic-password -s wilma-tldr -a storlundjonatan@gmail.com -w
+security add-generic-password -s wilma-tldr -a DIN_WILMA_ANVÄNDARE -w
 ```
 
-Kommandot frågar efter lösenordet och ekar det inte. Byta lösenord senare: samma
-kommando med `-U`.
-
-Användarnamn och skoladress är inte hemliga och står i `.mcp.json`.
+Kommandot frågar efter lösenordet och ekar det inte. Byta senare: samma kommando
+med `-U`. Användarnamn och skoladress är inte hemliga och står i `.mcp.json`.
 
 ### Använda
 
-Starta om Claude Code så att MCP-servern plockas upp, och fråga sedan på vanlig
-svenska:
+Starta om Claude Code så att MCP-servern plockas upp, och fråga sedan på svenska:
 
 ```
 vad har kommit i Wilma?
-vad behöver barnen ta med den här veckan?
+vad behöver Nellie ta med nästa vecka?
 ```
 
 Skillen i `.claude/skills/wilma/` hämtar, läser och kokar ner enligt samma regler
-som webbappen.
+som webbappen, med ett avsnitt per barn.
+
+### Verktyg
+
+| Verktyg | Gör |
+| --- | --- |
+| `wilma_children` | Barnen med skola, klass och rollprefix |
+| `wilma_messages` | Inkorgen per barn (alla barn om inget anges) |
+| `wilma_read` | Hela texten i ett meddelande, för ett angivet barn |
+
+Läs-bara med flit: servern kan inte skicka meddelanden, svara eller markera som
+läst.
 
 ### Värt att veta
 
-- **MFA stöds inte.** Om ditt konto kräver engångskod vid inloggning misslyckas
-  servern. Flödet är dokumenterat (`LoginResult: "mfa-required"` →
-  `POST /api/v1/accounts/me/mfa/otp/check` → `Wilma2MFASID`, giltig 30 dagar) och
-  går att lägga till.
-- **Servern kan också skicka meddelanden.** `send_message` och `reply_to_message`
-  skriver till skolan i ditt namn. Skillen kräver uttryckligt godkännande först;
-  vill du stänga dem helt, neka dem i `.claude/settings.json`.
+- **MFA stöds inte.** Kräver kontot engångskod misslyckas inloggningen med ett
+  tydligt fel. Flödet är dokumenterat (`LoginResult: "mfa-required"` →
+  `POST /api/v1/accounts/me/mfa/otp/check` → `Wilma2MFASID`, giltig 30 dagar).
+- **Meddelandetexten hämtas som HTML.** Den dokumenterade JSON-varianten
+  (`/messages/index_json/<id>`) svarar 403 på den här installationen; brödtexten
+  ligger i `div.ckeditor`.
+- **Inloggningen kräver en parad kaka.** `GET /index_json` ger både `SessionID` i
+  kroppen och `Wilma2LoginID` som kaka, med samma `cnf.kid` i JWT:n. Skickas inte
+  kakan med i `POST /login` nekas inloggningen — och curl tappar den tyst, eftersom
+  sessionskakor inte skrivs till en cookie-jar-fil.
 - **Oofficiell API.** Wilma har ingen öppen API för vårdnadshavare — det här är
-  samma anrop som mobilappen gör. Det kan sluta fungera när Visma ändrar något.
+  samma anrop som webbklienten gör. Det kan sluta fungera när Visma ändrar något.
 
 ## Övriga vägar in
 

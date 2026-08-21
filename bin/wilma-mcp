@@ -21,4 +21,4 @@ if ! WILMA_PASSWORD="$(security find-generic-password -s wilma-tldr -a "$WILMA_U
 fi
 
 export WILMA_BASE_URL WILMA_USERNAME WILMA_PASSWORD
-exec "$root/vendor/wilma-mcp/.venv/bin/python" -m wilma_mcp.server
+exec "$root/node_modules/.bin/tsx" "$root/src/mcp.ts"
