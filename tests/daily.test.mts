@@ -375,6 +375,96 @@ await check("ett misslyckat trådsvar tappas inte", async () => {
   assert.equal(retry.calls.extract, 1, "svaret försöktes inte igen");
 });
 
+await check("en trasig besvarad tråd ges upp, inte köps varje dygn", async () => {
+  const paths = await tempPaths();
+  const msg = { id: 101, subject: "Ansökan", timestamp: "2026-08-20 14:00" };
+  const replied = (extractThrows: boolean) => {
+    const s = stub({ messages: [msg], extractThrows });
+    return {
+      calls: s.calls,
+      deps: {
+        ...s.deps,
+        wilma: {
+          ...(s.deps as { wilma: Record<string, unknown> }).wilma,
+          messages: async () => [{ ...msg, sender: "Läraren", unread: false, replies: 1 }],
+        },
+      } as unknown as Deps,
+    };
+  };
+
+  // Åtta dygn med en besvarad tråd som aldrig kan läsas. Tidigare nollställdes
+  // budgeten varje dygn, så exhausted slog aldrig till och notan fortsatte.
+  let paid = 0;
+  for (let day = 1; day <= 8; day += 1) {
+    const r = replied(true);
+    const state = await run({ ...r.deps, ...paths });
+    paid += r.calls.extract;
+    if (day >= 4) {
+      assert.equal(r.calls.extract, 0, `dag ${day}: tråden köptes igen`);
+      assert.deepEqual(state.abandoned, ["m101"], `dag ${day}: tråden gavs inte upp`);
+    }
+  }
+  assert.equal(paid, 3, `betalade för ${paid} försök, förväntade 3`);
+});
+
+await check("ett tillstånd utan svarsräknare läser inte om allt", async () => {
+  const paths = await tempPaths();
+  const msg = { id: 101, subject: "Info", timestamp: "2026-08-20 14:00" };
+  const { writeFile } = await import("node:fs/promises");
+  // Cache från före funktionen: replies saknas helt.
+  await writeFile(
+    paths.statePath,
+    JSON.stringify({
+      stamp: "2026-08-20",
+      messageCount: 1,
+      seen: [101],
+      shared: [],
+      sharedUncertain: [],
+      children: [
+        {
+          slug: "testbarn",
+          name: "Testbarn",
+          school: "S",
+          className: "3a",
+          items: [],
+          exams: [],
+          uncertain: [],
+        },
+      ],
+    }),
+  );
+  const s = stub({ messages: [msg] });
+  const deps = {
+    ...s.deps,
+    wilma: {
+      ...(s.deps as { wilma: Record<string, unknown> }).wilma,
+      messages: async () => [{ ...msg, sender: "Läraren", unread: false, replies: 3 }],
+    },
+  } as unknown as Deps;
+  const state = await run({ ...deps, ...paths });
+  assert.equal(s.calls.extract, 0, "en redan läst tråd köptes om vid baslinjen");
+  assert.equal(state.repliesAttempted?.["101"], 3, "vattenmärket sattes inte vid baslinjen");
+});
+
+await check("en tom omläsning raderar inte en levande skyldighet", async () => {
+  const paths = await tempPaths();
+  const msg = { id: 101, subject: "Utvecklingssamtal", timestamp: "2026-08-20 14:00" };
+  await run({ ...stub({ messages: [msg] }).deps, ...paths });
+
+  // Svaret läses, men modellen hittar inga poster. Det gamla får stå kvar.
+  const s = stub({ messages: [msg], items: 0 });
+  const deps = {
+    ...s.deps,
+    wilma: {
+      ...(s.deps as { wilma: Record<string, unknown> }).wilma,
+      messages: async () => [{ ...msg, sender: "Läraren", unread: false, replies: 1 }],
+    },
+  } as unknown as Deps;
+  const state = await run({ ...deps, ...paths });
+  assert.equal(s.calls.extract, 1, "svaret lästes inte");
+  assert.equal(state.children[0]!.items.length, 1, "den gamla posten raderades av en tom omläsning");
+});
+
 console.log(results.join("\n"));
 console.log(failed ? `\n${failed} test föll.` : `\nAlla ${results.length} test gick igenom.`);
 if (failed) process.exitCode = 1;

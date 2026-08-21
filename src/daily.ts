@@ -92,8 +92,13 @@ export interface State {
   seenNotices?: number[];
   /** Lästa läxposter, nycklade kurs|datum|text. */
   seenHomework?: string[];
-  /** Antal svar per meddelande vid senaste läsning. Ändras det har någon svarat. */
+  /** Antal svar per meddelande vid senaste LYCKADE läsning — "finns nytt?". */
   replies?: Record<string, number>;
+  /**
+   * Antal svar vid senaste FÖRSÖK, lyckat eller inte. Vattenmärket som gör att
+   * en tråd får en ny budget per nytt svar, inte en ny budget varje dygn.
+   */
+  repliesAttempted?: Record<string, number>;
   shared: Item[];
   sharedUncertain: Unclear[];
   children: ChildBlock[];
@@ -267,6 +272,14 @@ export async function run(deps: Deps): Promise<State> {
     else console.warn(`Inget foto för ${child.name} — behåller eventuellt tidigare.`);
   }
 
+  // Ett tillstånd som saknar svarsräknarna är från före funktionen fanns. Då är
+  // svarsantalen okända, inte noll — annars ser varje tråd med svar ut som ny
+  // och köps om, och sidan byter ordalydelse utan att något hänt.
+  const repliesBaseline = Boolean(previous) && previous?.repliesAttempted === undefined;
+  if (repliesBaseline) {
+    console.log("Första körningen med svarsräknare — nollställer utan att läsa om något.");
+  }
+
   // Steg 2: samma meddelande-id hos flera barn = hela skolan.
   const owners = new Map<number, string[]>();
   for (const child of children) {
@@ -291,16 +304,20 @@ export async function run(deps: Deps): Promise<State> {
       }
     })
     .filter(({ id, message }) => {
-      // Svarsjämförelsen FÖRE exhausted: tre misslyckanden gällde det gamla
-      // innehållet, och ett svar är nytt innehåll. Då förtjänar tråden en ny
-      // budget i stället för att falla på första hicka.
-      const before = previous?.replies?.[String(id)] ?? 0;
-      if (message.replies > before) {
+      // Vattenmärket räknas upp vid varje FÖRSÖK, inte bara vid lyckade. Annars
+      // nollades budgeten varje dygn för en tråd som aldrig kan läsas, och
+      // exhausted kunde aldrig slå till — en evig daglig kostnad.
+      const attemptedAt = previous?.repliesAttempted?.[String(id)] ?? 0;
+      if (!repliesBaseline && message.replies > attemptedAt) {
         delete attempts[`m${id}`];
         return true;
       }
       if (exhausted(`m${id}`)) return false;
-      return !seen.has(id);
+      // Ett pågående återförsök ska fortsätta tills budgeten är slut.
+      if ((attempts[`m${id}`] ?? 0) > 0) return true;
+      if (!seen.has(id)) return true;
+      const readAt = previous?.replies?.[String(id)] ?? 0;
+      return !repliesBaseline && message.replies > readAt;
     })
     .sort((a, b) => b.message.timestamp.localeCompare(a.message.timestamp));
 
@@ -321,6 +338,9 @@ export async function run(deps: Deps): Promise<State> {
   const failedIds: string[] = [];
   // Trådar vi faktiskt läste om i den här körningen.
   const readThisRun = new Set<number>();
+  // ...och av dem, de som gav minst en post. En lyckad men tom omläsning får
+  // inte radera en levande skyldighet: modellen kan ha missat den.
+  const supersedable = new Set<number>();
   let transportFailures = 0;
   const noticeFailures: string[] = [];
   const homeworkFailures: string[] = [];
@@ -381,6 +401,7 @@ export async function run(deps: Deps): Promise<State> {
 
       seen.add(id);
       readThisRun.add(id);
+      if (result.items.length > 0) supersedable.add(id);
       console.log(`  [${id}] ${message.subject} → ${result.items.length} poster (${target})`);
     } catch (error) {
       // Meddelandet läggs medvetet INTE i seen: nästa körning får försöka igen.
@@ -585,7 +606,7 @@ export async function run(deps: Deps): Promise<State> {
   // är ersatta, inte kompletterade. Grinden är readThisRun: en tråd som föll är
   // aldrig där, så ingenting kan tappas utan att något sätts i dess ställe.
   const superseded = (item: Item): boolean =>
-    item.messageId > 0 && readThisRun.has(item.messageId);
+    item.messageId > 0 && supersedable.has(item.messageId);
 
   const merge = (old: Item[], fresh: Item[]): Item[] =>
     [...old.filter((item) => stillRelevant(item, today) && !superseded(item)), ...fresh]
@@ -636,6 +657,11 @@ export async function run(deps: Deps): Promise<State> {
     );
   }
 
+  const currentReplies = (id: number): number | undefined => {
+    const prefix = owners.get(id)?.[0];
+    return prefix ? (inboxes.get(prefix) ?? []).find((m) => m.id === id)?.replies : undefined;
+  };
+
   const state: State = {
     stamp: today,
     messageCount: [...owners.keys()].length,
@@ -644,15 +670,21 @@ export async function run(deps: Deps): Promise<State> {
     seenHomework: [...seenHomework].sort(),
     // Bara trådar vi faktiskt läste får sitt antal uppdaterat. Annars skrevs
     // svaret över av en misslyckad omläsning och kunde aldrig hittas igen.
+    // Bara den tråd vi läste om får sitt antal uppdaterat. "Finns i seen" var fel
+    // signal: den var sann sedan i går och skrev över svaret.
     replies: Object.fromEntries(
       [...owners.keys()].map((id) => {
         const previousCount = previous?.replies?.[String(id)] ?? 0;
-        // Bara den tråd vi läste om får sitt antal uppdaterat. "Finns i seen"
-        // var fel signal: den var sann sedan i går och skrev över svaret.
-        if (!readThisRun.has(id)) return [String(id), previousCount];
-        const prefix = owners.get(id)![0]!;
-        const message = (inboxes.get(prefix) ?? []).find((m) => m.id === id);
-        return [String(id), message?.replies ?? previousCount];
+        if (!readThisRun.has(id) && !repliesBaseline) return [String(id), previousCount];
+        return [String(id), currentReplies(id) ?? previousCount];
+      }),
+    ),
+    // Vattenmärket: varje försök räknas, annars kan budgeten nollställas i evighet.
+    repliesAttempted: Object.fromEntries(
+      [...owners.keys()].map((id) => {
+        const attempted = previous?.repliesAttempted?.[String(id)] ?? 0;
+        const tried = repliesBaseline || toExtract.some((c) => c.id === id);
+        return [String(id), tried ? (currentReplies(id) ?? attempted) : attempted];
       }),
     ),
     attempts,
