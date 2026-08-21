@@ -110,9 +110,21 @@ const normalise = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCa
  * Fel som är värda att köra om på en starkare modell. Allt som kan lagas i kod
  * lagas i kod i stället — en omkörning kostar pengar.
  */
+/**
+ * Felklassen avgör om det är värt att köpa ett andra utlåtande.
+ *
+ * - weekend: helgdatum. Vakten i daily.ts blankar det ändå, så en eskalering
+ *   betalar för en åsikt om ett fält koden skriver över.
+ * - quote: citatet finns inte i källan — påhittsdetektorn, och det enda en
+ *   starkare modell faktiskt lagar.
+ * - text/date: strukturellt oanvändbart svar.
+ */
+type ViolationKind = "weekend" | "quote" | "text" | "date" | "lang";
+
 interface Violation {
   /** Index i result.items, eller -1 för fel som inte hör till en post. */
   index: number;
+  kind: ViolationKind;
   problem: string;
 }
 
@@ -143,32 +155,33 @@ function violations(result: Tldr, source: string): Violation[] {
 
   result.items.forEach((item, index) => {
     const label = item.text || item.text_fi || "(namnlös)";
-    const add = (problem: string) => problems.push({ index, problem: `"${label}": ${problem}` });
+    const add = (kind: ViolationKind, problem: string) =>
+      problems.push({ index, kind, problem: `"${label}": ${problem}` });
 
     if (!item.text.trim() || !item.text_fi.trim()) {
-      add("saknar text på båda språken");
+      add("text", "saknar text på båda språken");
     }
     if (item.date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date) || Number.isNaN(Date.parse(item.date))) {
-        add(`ogiltigt datum "${item.date}"`);
+        add("date", `ogiltigt datum "${item.date}"`);
       } else {
         const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
         const namesWeekend = WEEKEND_WORDS.test(item.quote) || WEEKEND_WORDS.test(item.text);
         if ((weekday === 0 || weekday === 6) && !namesWeekend) {
-          add(`${item.date} är en helgdag men inget nämner helgen`);
+          add("weekend", `${item.date} är en helgdag men inget nämner helgen`);
         }
       }
     }
     // Citatet ska gå att hitta i källan. Fångar påhitt billigare än någon modell.
     const quote = normalise(item.quote);
     if (quote.length > 8 && !haystack.includes(quote)) {
-      add("citatet finns inte i källtexten");
+      add("quote", "citatet finns inte i källtexten");
     }
   });
 
   for (const line of result.uncertain) {
     if (!line.sv.trim() || !line.fi.trim()) {
-      problems.push({ index: -1, problem: "oklarhet saknar ett av språken" });
+      problems.push({ index: -1, kind: "lang", problem: "oklarhet saknar ett av språken" });
     }
   }
 
@@ -272,6 +285,8 @@ ${message}
 
 export interface ExtractResult extends Tldr {
   usage: Usage[];
+  /** Vilka felklasser som utlöste en omkörning. Tomt när ingen behövdes. */
+  rescuedFor: string[];
   /** Poster som föll på valideringen även efter omkörning, och därför släpptes. */
   dropped: string[];
 }
@@ -289,7 +304,27 @@ export async function extract(message: string, options: ExtractOptions): Promise
 
   repair(result);
   let problems = violations(result, message);
+  const rescuedFor: string[] = [];
+
+  // Ett ensamt helgdatum lagas i koden: vakten blankar det ändå. Finns flera
+  // daterade poster är ett helgdatum däremot tecken på att referensdatumet
+  // lästs fel systematiskt i hela meddelandet, och då är ett andra utlåtande
+  // värt pengarna.
+  const datedItems = result.items.filter((item) => item.date).length;
+  if (problems.length && problems.every((p) => p.kind === "weekend") && datedItems <= 1) {
+    for (const problem of problems) {
+      const item = result.items[problem.index];
+      if (!item) continue;
+      console.warn(`  lagar i kod: ${problem.problem}`);
+      item.date = "";
+      item.date_label = "";
+      item.date_label_fi = "";
+    }
+    problems = violations(result, message);
+  }
+
   if (problems.length) {
+    rescuedFor.push(...new Set(problems.map((p) => p.kind)));
     console.warn(
       `  ${WORK_MODEL} gav ${problems.length} problem, kör om på ${RESCUE_MODEL}:\n` +
         problems.map((p) => `    - ${p.problem}`).join("\n"),
@@ -325,11 +360,11 @@ export async function extract(message: string, options: ExtractOptions): Promise
     return 0;
   });
 
-  return { ...result, items, usage, dropped };
+  return { ...result, items, usage, dropped, rescuedFor };
 }
 
 /** Sammanfattar en körnings kostnad för loggen. */
-export function summariseUsage(all: Usage[]): string {
+export function summariseUsage(all: Usage[], rescuedFor: string[] = []): string {
   const total = all.reduce(
     (sum, u) => ({
       input: sum.input + u.inputTokens,
@@ -340,8 +375,11 @@ export function summariseUsage(all: Usage[]): string {
     { input: 0, output: 0, cached: 0, cost: 0 },
   );
   const models = [...new Set(all.map((u) => u.model))].join(", ") || "inga anrop";
+  const rescues = rescuedFor.length
+    ? ` — omkörningar utlösta av: ${[...new Set(rescuedFor)].join(", ")} (${rescuedFor.length} st)`
+    : "";
   return (
     `${all.length} modellanrop (${models}) — ${total.input} in, ${total.output} ut, ` +
-    `${total.cached} ur cachen, ca $${total.cost.toFixed(4)}`
+    `${total.cached} ur cachen, ca $${total.cost.toFixed(4)}${rescues}`
   );
 }

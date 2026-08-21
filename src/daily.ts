@@ -332,6 +332,7 @@ export async function run(deps: Deps): Promise<State> {
 
   // Steg 4: extrahera. Enda steget som kostar något.
   const usage: Usage[] = [];
+  const rescuedFor: string[] = [];
   // Skilda listor med flit: publiceringsbeslutet hör till meddelandena. Delade
   // räknare gjorde att sex anslagsfel kunde stoppa sex lyckade meddelanden.
   const msgFailures: string[] = [];
@@ -375,6 +376,7 @@ export async function run(deps: Deps): Promise<State> {
       const sentAt = new Date(`${dayOf(message.timestamp)}T12:00:00+03:00`);
       const result = await extractOne(body.text + attached, { sentAt, now, household: facts });
       usage.push(...result.usage);
+      rescuedFor.push(...result.rescuedFor);
       if (result.dropped.length) {
         console.warn(`  [${id}] släppte ${result.dropped.length} post(er): ${result.dropped.join("; ")}`);
       }
@@ -401,6 +403,7 @@ export async function run(deps: Deps): Promise<State> {
 
       seen.add(id);
       readThisRun.add(id);
+      delete attempts[`m${id}`];
       if (result.items.length > 0) supersedable.add(id);
       console.log(`  [${id}] ${message.subject} → ${result.items.length} poster (${target})`);
     } catch (error) {
@@ -475,6 +478,7 @@ export async function run(deps: Deps): Promise<State> {
           { sentAt, now, household: facts },
         );
         usage.push(...result.usage);
+        rescuedFor.push(...result.rescuedFor);
         push(
           freshItems,
           child.prefix,
@@ -501,6 +505,7 @@ export async function run(deps: Deps): Promise<State> {
           })),
         );
         seenNotices.add(notice.id);
+        delete attempts[`n${notice.id}`];
         console.log(
           `  anslag [${notice.id}] ${notice.title.slice(0, 50)} → ${result.items.length} poster (${child.name})`,
         );
@@ -571,6 +576,7 @@ export async function run(deps: Deps): Promise<State> {
           { sentAt, now, household: facts },
         );
         usage.push(...result.usage);
+        rescuedFor.push(...result.rescuedFor);
         push(
           freshItems,
           child.prefix,
@@ -593,6 +599,7 @@ export async function run(deps: Deps): Promise<State> {
           })),
         );
         seenHomework.add(id);
+        delete attempts[`h${id}`];
         console.log(`  läxa ${entry.date} ${entry.course} → ${result.items.length} poster (${child.name})`);
       } catch (error) {
         homeworkFailures.push(`${entry.course} ${entry.date}: ${error instanceof Error ? error.message : error}`);
@@ -729,7 +736,7 @@ export async function run(deps: Deps): Promise<State> {
     `data/oversikt.json — ${state.children.length} barn, ${total} poster, ` +
       `${state.children.reduce((s, c) => s + c.exams.length, 0)} prov, stamp ${state.stamp}`,
   );
-  console.log(summariseUsage(usage));
+  console.log(summariseUsage(usage, rescuedFor));
 
   return state;
 }

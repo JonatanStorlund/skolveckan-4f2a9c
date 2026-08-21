@@ -96,6 +96,7 @@ function stub(options: StubOptions = {}) {
         uncertain: [],
         usage: [],
         dropped: [],
+        rescuedFor: [],
       };
     },
   } as unknown as Deps;
@@ -463,6 +464,27 @@ await check("en tom omläsning raderar inte en levande skyldighet", async () => 
   const state = await run({ ...deps, ...paths });
   assert.equal(s.calls.extract, 1, "svaret lästes inte");
   assert.equal(state.children[0]!.items.length, 1, "den gamla posten raderades av en tom omläsning");
+});
+
+await check("ett meddelande som faller en gång och sedan lyckas köps inte om", async () => {
+  const paths = await tempPaths();
+  const msg = { id: 101, subject: "Info", timestamp: "2026-08-20 14:00" };
+  // Budgeten räknar följande misslyckanden. Utan nollställning vid lyckat svar
+  // blev "återförsök pågår" sant för evigt — samma meddelande varje dygn, och
+  // posten omformulerad varje gång.
+  const day1 = stub({ messages: [msg], extractThrows: true });
+  await run({ ...day1.deps, ...paths });
+
+  const day2 = stub({ messages: [msg] });
+  const after2 = await run({ ...day2.deps, ...paths });
+  assert.equal(day2.calls.extract, 1, "dag 2 lästes inte");
+  assert.deepEqual(after2.attempts, {}, `budgeten står kvar: ${JSON.stringify(after2.attempts)}`);
+  const wording = after2.children[0]!.items[0]!.sv.text;
+
+  const day3 = stub({ messages: [msg] });
+  const after3 = await run({ ...day3.deps, ...paths });
+  assert.equal(day3.calls.extract, 0, "dag 3 köpte om ett meddelande som redan lyckats");
+  assert.equal(after3.children[0]!.items[0]!.sv.text, wording, "ordalydelsen ändrades utan att något hänt");
 });
 
 console.log(results.join("\n"));
