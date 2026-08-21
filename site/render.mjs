@@ -48,7 +48,8 @@ const words = (s) =>
   new Set(
     String(s)
       .toLowerCase()
-      .replace(/[^\wåäöü\s.:-]/g, " ")
+      .replace(/[\d.:]+/g, " ")
+      .replace(/[^a-zåäöü\s]/g, " ")
       .split(/\s+/)
       .filter((w) => w.length > 2),
   );
@@ -531,9 +532,12 @@ ${table(strings.fi)}
       if (date && date < todayIso) return "past";
       if (li.dataset.kind === "prov") return "exams";
       if (li.dataset.kind === "bokning") return "booking";
+      // Speglar bucketOf() i render.mjs. Avvek de, flyttade omgrupperingen
+      // tillbaka det renderaren just hade sorterat bort.
+      if (li.dataset.kind === "info") return "info";
       if (!date) return "info";
       if (date <= weekEndIso) return "week";
-      return li.dataset.kind === "info" ? "info" : "later";
+      return "later";
     }
 
     /* Inom en dag: packa väskan före läxan. Ordningen speglar morgonen. */
