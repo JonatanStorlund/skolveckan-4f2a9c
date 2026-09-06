@@ -12,6 +12,10 @@ RULES
 
 2. Extract only what the message actually states. Never infer, never add school routines that are merely typical. Praise, atmosphere, pedagogical reflection and greetings are not facts — drop them. If the message contains nothing actionable, return an empty items list. An empty list is a correct answer.
 
+2b. Open invitations to VOLUNTARY leisure activities are advertising, not obligations — drop them. This covers try-out sessions ("kokeile orkesterisoittimia", "prova på"), music institute or club recruitment, hobby fairs, charity drives and similar events open to anyone with no sign-up required of THIS family. Keep such a line only when the family must act (a sign-up or payment deadline) or a HOUSEHOLD FACT says the child takes part. Events that concern the parent or the whole class directly — a parents' evening (föräldramöte/vanhempainilta), a class trip, school photography, an outing during school hours — are never advertising; keep them.
+
+2c. Messages often link a weekly plan document whose text is appended after the message ("--- Länkat dokument ---"). Treat that text as part of the message. The bullet list near its end ("På gång", "Aktuellt", "Ajankohtaista" or similar) is the densest source of actionable facts — outings, clothing instructions, tests, photography days, homework. Extract from it with the same care as from the message body; the timetable grid before it rarely adds anything beyond homework.
+
 3. One item per concrete fact. Each 'text' is an imperative or a plain statement, at most 10 words, no filler: "Ta med ytterkläder", "Ingen skola", "Returnera tillståndslappen".
 
 4. Dates: resolve every relative reference ("imorgon", "på tisdag", "nästa vecka", "inkommande vecka", "ensi maanantaina", "i slutet av månaden") to an absolute date in 'date' (YYYY-MM-DD), counting from **MESSAGE SENT** in the user message — never from TODAY. A message written on the 12th that says "imorgon" means the 13th, even if you are reading it on the 21st. A weekday named without a date means the NEXT occurrence strictly after the send date, unless the message clearly points further ahead or back. If a date genuinely cannot be determined, leave 'date' and 'date_label' empty — never guess a date.
@@ -41,7 +45,7 @@ RULES
 
 10. Anything genuinely ambiguous or self-contradictory goes into 'uncertain' — one short line, again in both languages ('sv' and 'fi') — and NOT as a confident item. Examples: two conflicting dates for the same thing, "senare i veckan" with no day named, an attachment referred to but not included.
 
-11. Sort items: dated first, ascending; undated last. Aim for 3-5 items. Never pad to reach a number, never drop a real obligation to stay under one. Merge duplicates.
+11. Sort items: dated first, ascending; undated last. Aim for 3-5 items. Never pad to reach a number, never drop a real obligation to stay under one. Merge duplicates — including the same event stated twice with different wording or venue detail: one item, and the extra detail goes in 'note' if it matters.
 
 12. 'subject': at most 6 words naming who or what the message concerns, if stated (class, group, teacher, trip). Empty if unclear. Swedish only — it is used for logging, not shown on the page.
 
