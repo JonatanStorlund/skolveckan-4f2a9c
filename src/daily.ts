@@ -38,8 +38,13 @@ const INBOX_LIMIT = 25;
 const MAX_NOTICES_PER_RUN = 3;
 /** Tak på läxposter per körning. Första körningen har en hel veckas dagbok. */
 const MAX_HOMEWORK_PER_RUN = 8;
-/** Tak på hämtad dokumenttext, så ett långt dokument inte sväller prompten. */
-const DOC_CHARS = 4000;
+/**
+ * Tak på hämtad dokumenttext, så ett långt dokument inte sväller prompten.
+ * Rymligt med flit: veckoplaneringens txt-export börjar med schematabellen och
+ * slutar med "På gång"-listan — 4000 tecken klippte bort just den. 12000 tecken
+ * Haiku-indata kostar fortfarande under en halv cent.
+ */
+const DOC_CHARS = 12000;
 
 export interface Localized {
   text: string;
@@ -58,6 +63,12 @@ export interface Item {
   fi: Localized;
   quote: string;
   messageId: number;
+  /**
+   * Fler meddelanden som sagt samma sak — dedupens minne. En post raderas av
+   * supersede bara när VARJE tråd som hävdat den lästs om; annars kunde en
+   * ofullständig omläsning av EN tråd radera vad ett annat brev fortfarande står för.
+   */
+  alsoFrom?: number[];
   /** ISO-datum då posten först dök upp — styr städning av odaterade poster. */
   addedOn: string;
 }
@@ -171,6 +182,16 @@ async function loadState(today: string, file: string): Promise<State | null> {
 }
 
 /**
+ * Dokument-id ur en Google Docs-länk. Exporterad för testerna. Tål varianterna
+ * lärare faktiskt klistrar in: /document/d/<id>, /document/u/0/d/<id> och
+ * /document/d/<id>/edit?usp=sharing. Längdkravet skiljer äkta id:n från
+ * "publicera på webben"-länkars /d/e/2PACX-… där "e" annars fångades som id.
+ */
+export function googleDocId(link: string): string | null {
+  return /docs\.google\.com\/document\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{25,})/.exec(link)?.[1] ?? null;
+}
+
+/**
  * Veckoplaneringen — där läxorna står — ligger som regel i ett Google-dokument
  * som läraren länkar till. Delade dokument har en publik textexport, så den
  * hämtas och läggs efter meddelandet innan extraheringen.
@@ -178,7 +199,7 @@ async function loadState(today: string, file: string): Promise<State | null> {
 async function followDocs(links: string[]): Promise<string> {
   const parts: string[] = [];
   for (const link of links) {
-    const id = /docs\.google\.com\/document\/d\/([A-Za-z0-9_-]+)/.exec(link)?.[1];
+    const id = googleDocId(link);
     if (!id) continue;
     try {
       const response = await fetch(`https://docs.google.com/document/d/${id}/export?format=txt`, {
@@ -190,8 +211,14 @@ async function followDocs(links: string[]): Promise<string> {
         continue;
       }
       // Ingen smart trimning: förra försöket klippte bort just läxorna.
-      // 4000 tecken Haiku-indata kostar under en tiondels cent.
-      const text = (await response.text()).slice(0, DOC_CHARS).trim();
+      const full = (await response.text()).trim();
+      if (full.length > DOC_CHARS) {
+        // Aldrig tyst: det som klipps är dokumentets slut, där "På gång" står.
+        console.warn(
+          `  dokument ${id} är ${full.length} tecken — klipper till ${DOC_CHARS}, slutet faller bort.`,
+        );
+      }
+      const text = full.slice(0, DOC_CHARS);
       if (text) parts.push(`\n\n--- Länkat dokument (${link}) ---\n${text}`);
     } catch (error) {
       console.warn(`  kunde inte hämta ${link}: ${error instanceof Error ? error.message : error}`);
@@ -252,7 +279,10 @@ export async function run(deps: Deps): Promise<State> {
     ...(previous?.sharedUncertain ?? []),
     ...(previous?.children ?? []).flatMap((c) => [...c.items, ...c.uncertain]),
   ]) {
-    if (typeof item.messageId === "number" && item.messageId > 0) seen.add(item.messageId);
+    // alsoFrom med: en kollapsad dubbletts enda spår är den listan, och utan
+    // den köptes källan om ifall seen-listan gått förlorad.
+    const ids = [item.messageId, ...("alsoFrom" in item ? (item.alsoFrom ?? []) : [])];
+    for (const id of ids) if (typeof id === "number" && id > 0) seen.add(id);
   }
 
   const children = await wilma.children();
@@ -441,7 +471,8 @@ export async function run(deps: Deps): Promise<State> {
   const seenNotices = new Set(previous?.seenNotices ?? []);
   // Härled på samma sätt som seen, så listan inte kan glida ifrån innehållet.
   for (const item of (previous?.children ?? []).flatMap((c) => [...c.items, ...c.uncertain])) {
-    if (typeof item.messageId === "number" && item.messageId < 0) seenNotices.add(-item.messageId);
+    const ids = [item.messageId, ...("alsoFrom" in item ? (item.alsoFrom ?? []) : [])];
+    for (const id of ids) if (typeof id === "number" && id < 0) seenNotices.add(-id);
   }
   let noticeBudget = MAX_NOTICES_PER_RUN;
 
@@ -622,29 +653,48 @@ export async function run(deps: Deps): Promise<State> {
   // En tråd vi läst om innehåller originalet PLUS svaren, så dess gamla poster
   // är ersatta, inte kompletterade. Grinden är readThisRun: en tråd som föll är
   // aldrig där, så ingenting kan tappas utan att något sätts i dess ställe.
+  // En post raderas bara när ALLA trådar som hävdat den lästs om med resultat.
+  // En tråd som aldrig lästs om står fortfarande för sitt ord.
   const superseded = (item: Item): boolean =>
-    item.messageId > 0 && supersedable.has(item.messageId);
+    item.messageId > 0 &&
+    supersedable.has(item.messageId) &&
+    (item.alsoFrom ?? []).every((id) => supersedable.has(id));
 
-  const merge = (old: Item[], fresh: Item[]): Item[] =>
-    [...old.filter((item) => stillRelevant(item, today) && !superseded(item)), ...fresh]
-      .filter(
-        // Datumet med i nyckeln: "Läs kapitel 3" i två kurser på två dagar är
-        // två läxor, inte en. Utan datum försvann den ena för alltid.
-        (item, index, all) =>
-          all.findIndex(
-            (other) =>
-              other.messageId === item.messageId &&
-              (other.source ?? "") === (item.source ?? "") &&
-              other.date === item.date &&
-              other.sv.text === item.sv.text,
-          ) === index,
-      )
-      .sort((a, b) => {
-        if (a.date && b.date) return a.date.localeCompare(b.date);
-        if (a.date) return -1;
-        if (b.date) return 1;
-        return 0;
-      });
+  // Samma händelse når oss ofta via flera källor — två veckobrev, brev plus
+  // anslag, samma länkade dokument följt två gånger — med olika messageId.
+  // Nyckeln är därför innehållet, inte källan. source (läxans kurs) och datumet
+  // hålls kvar: "Läs kapitel 3" i två kurser eller på två dagar är två läxor,
+  // inte en — utan dem försvann den ena för alltid.
+  const dedupKey = (item: Item): string =>
+    [item.source ?? "", item.date, item.time, item.sv.text.toLowerCase().replace(/\s+/g, " ").trim()].join("|");
+
+  const merge = (old: Item[], fresh: Item[]): Item[] => {
+    const byKey = new Map<string, Item>();
+    for (const item of [...old.filter((it) => stillRelevant(it, today) && !superseded(it)), ...fresh]) {
+      const existing = byKey.get(dedupKey(item));
+      if (!existing) {
+        byKey.set(dedupKey(item), item);
+        continue;
+      }
+      // Kollapsen får inte tappa vad dubbletten visste: varje ytterligare tråd
+      // antecknas (styr supersede ovan), och addedOn följer den FÄRSKASTE
+      // utsagan — annars TTL-städas en nyss påmind odaterad skyldighet i förtid.
+      const ids = new Set([...(existing.alsoFrom ?? []), item.messageId, ...(item.alsoFrom ?? [])]);
+      ids.delete(existing.messageId);
+      // Negativa id (anslag) hålls kvar med flit: ett anslag kan aldrig
+      // omläsas, så dess närvaro låser posten mot supersede — precis som dess
+      // egen kopia gjorde före dedupen. Bara läxornas 0 sållas.
+      const extra = [...ids].filter((id) => id !== 0);
+      if (extra.length) existing.alsoFrom = extra;
+      if (item.addedOn > existing.addedOn) existing.addedOn = item.addedOn;
+    }
+    return [...byKey.values()].sort((a, b) => {
+      if (a.date && b.date) return a.date.localeCompare(b.date);
+      if (a.date) return -1;
+      if (b.date) return 1;
+      return 0;
+    });
+  };
 
   const mergeUnclear = (old: Unclear[], fresh: Unclear[]): Unclear[] =>
     [...old.filter((u) => unclearStillRelevant(u, today)), ...fresh].filter(

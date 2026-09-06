@@ -9,7 +9,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { run, type Deps } from "../src/daily.js";
+import { run, googleDocId, type Deps } from "../src/daily.js";
 import { SourceError, TransportError, type ExtractResult } from "../src/extract.js";
 
 const results: string[] = [];
@@ -311,6 +311,175 @@ await check("läxfel räknas och loggas som andra fel", async () => {
   const state = await run({ ...fourth.deps, ...paths });
   assert.equal(fourth.calls.extract, 0, "en uppgiven läxpost köptes igen");
   assert.equal(state.abandoned?.length, 1, "uppgiven läxpost syns inte i tillståndet");
+});
+
+await check("samma händelse ur två meddelanden blir en post", async () => {
+  // Två veckobrev (eller brev + anslag) som båda nämner samma daterade händelse
+  // fick tidigare två poster: nyckeln var messageId, inte innehållet.
+  const { deps } = stub({
+    messages: [
+      { id: 101, subject: "Veckobrev v.38", timestamp: "2026-08-20 14:00" },
+      { id: 102, subject: "Veckobrev v.39", timestamp: "2026-08-20 15:00" },
+    ],
+  });
+  const state = await run({ ...deps, ...(await tempPaths()) });
+  assert.equal(
+    state.children[0]!.items.length,
+    1,
+    `samma händelse ur två meddelanden gav ${state.children[0]!.items.length} poster`,
+  );
+});
+
+await check("samma lydelse i två kurser samma dag förblir två läxor", async () => {
+  // source (kursen) ska hålla isär dem fast datum och text är identiska.
+  const { deps } = stub({
+    messages: [],
+    homework: [
+      { course: "MA MA71", date: "2026-08-24", text: "Läs kapitel 3" },
+      { course: "FY FY71", date: "2026-08-24", text: "Läs kapitel 3" },
+    ],
+    sameText: true,
+  });
+  const state = await run({ ...deps, ...(await tempPaths()) });
+  assert.equal(state.children[0]!.items.length, 2, "en av två kursers läxor tappades i dedupen");
+});
+
+await check("googleDocId tål länkvarianterna lärare klistrar in", async () => {
+  const id = "1AbC_dEf-123456789012345678901234567890";
+  for (const link of [
+    `https://docs.google.com/document/d/${id}/edit`,
+    `https://docs.google.com/document/d/${id}/edit?usp=sharing`,
+    `https://docs.google.com/document/u/0/d/${id}/edit`,
+    `https://docs.google.com/document/d/${id}`,
+  ]) {
+    assert.equal(googleDocId(link), id, `missade id i ${link}`);
+  }
+  assert.equal(googleDocId("https://example.com/dokument"), null, "hittade id där inget finns");
+  assert.equal(googleDocId(`https://docs.google.com/spreadsheets/d/${id}/edit`), null, "kalkylark är inte dokument");
+  // "Publicera på webben"-länkens /d/e/2PACX-… är inget dokument-id — "e"
+  // fångades tidigare och gav ett meningslöst hämtningsförsök.
+  assert.equal(
+    googleDocId("https://docs.google.com/document/d/e/2PACX-1vT_abcdefghijklmnopqrstuvwxyz/pub"),
+    null,
+    "publicerings-länkens 'e' togs för ett id",
+  );
+});
+
+await check("en påmind odaterad skyldighet ärver påminnelsens addedOn", async () => {
+  // Dag 0: "Läs kapitel 3" (odaterad) ur meddelande 101. Dedupen behöll gamla
+  // kopians addedOn, så en påminnelse dag 20 hindrade inte TTL-städningen dag 22.
+  const paths = await tempPaths();
+  await run({ ...stub({ messages: [{ id: 101, subject: "Info", timestamp: "2026-08-20 14:00" }], sameText: true }).deps, ...paths });
+
+  // 19 dygn senare: nytt meddelande, samma lydelse.
+  const later = stub({ messages: [{ id: 102, subject: "Påminnelse", timestamp: "2026-09-08 14:00" }], sameText: true });
+  const state = await run({ ...later.deps, now: new Date("2026-09-09T09:00:00+03:00"), ...paths });
+  assert.equal(state.children[0]!.items.length, 1, "dubbletten kollapsades inte");
+  assert.equal(
+    state.children[0]!.items[0]!.addedOn,
+    "2026-09-09",
+    `addedOn står kvar på ${state.children[0]!.items[0]!.addedOn} — TTL städar den påminda skyldigheten i förtid`,
+  );
+});
+
+await check("supersede raderar inte vad ett annat brev fortfarande hävdar", async () => {
+  // Två brev hävdar samma daterade händelse; dedupen behåller en kopia. När ena
+  // tråden får svar och omläses UTAN händelsen (men med annat innehåll) får
+  // posten inte raderas — det andra brevet står för sitt ord och är redan i seen.
+  const paths = await tempPaths();
+  const msgs = [
+    { id: 101, subject: "Veckobrev A", timestamp: "2026-08-20 14:00" },
+    { id: 102, subject: "Veckobrev B", timestamp: "2026-08-20 15:00" },
+  ];
+  await run({ ...stub({ messages: msgs }).deps, ...paths });
+
+  // Svar i tråd 101; omläsningen ger EN post med annan lydelse.
+  const s = stub({ messages: msgs });
+  const deps = {
+    ...s.deps,
+    wilma: {
+      ...(s.deps as { wilma: Record<string, unknown> }).wilma,
+      messages: async () => [
+        { ...msgs[0]!, sender: "Läraren", unread: false, replies: 1 },
+        { ...msgs[1]!, sender: "Läraren", unread: false, replies: 0 },
+      ],
+    },
+    extract: async (): Promise<ExtractResult> => ({
+      language_in: "sv",
+      subject: "",
+      items: [
+        {
+          text: "Helt annan post",
+          text_fi: "Aivan eri kohta",
+          kind: "info" as const,
+          date: "",
+          date_label: "",
+          date_label_fi: "",
+          time: "",
+          note: "",
+          note_fi: "",
+          quote: "gymnastikkläder",
+        },
+      ],
+      uncertain: [],
+      usage: [],
+      dropped: [],
+      rescuedFor: [],
+    }),
+  } as unknown as Deps;
+  const state = await run({ ...deps, ...paths });
+  const texts = state.children[0]!.items.map((i) => i.sv.text);
+  assert.ok(
+    texts.includes("Post 0"),
+    `händelsen raderades fast brev 102 fortfarande hävdar den (kvar: ${texts.join(", ")})`,
+  );
+});
+
+await check("brev+anslag-dubblett: anslagets id låser posten mot supersede", async () => {
+  // Samma händelse i ett brev och på anslagstavlan kollapsar till en post.
+  // Anslaget kan aldrig omläsas, så dess (negativa) id i alsoFrom måste hindra
+  // att en ofullständig omläsning av brevet raderar posten.
+  const paths = await tempPaths();
+  const msg = { id: 101, subject: "Veckobrev", timestamp: "2026-08-20 14:00" };
+  const first = stub({ messages: [msg], notices: [{ id: 45, title: "Samma sak", date: "2026-08-19" }] });
+  const state1 = await run({ ...first.deps, ...paths });
+  assert.equal(state1.children[0]!.items.length, 1, "brev+anslag kollapsades inte");
+  assert.deepEqual(state1.children[0]!.items[0]!.alsoFrom, [-45], "anslagets id antecknades inte");
+
+  // Svar i brevtråden; omläsningen ger en HELT annan post.
+  const s = stub({ messages: [msg] });
+  const deps = {
+    ...s.deps,
+    wilma: {
+      ...(s.deps as { wilma: Record<string, unknown> }).wilma,
+      messages: async () => [{ ...msg, sender: "Läraren", unread: false, replies: 1 }],
+    },
+    extract: async (): Promise<ExtractResult> => ({
+      language_in: "sv",
+      subject: "",
+      items: [
+        {
+          text: "Helt annan post",
+          text_fi: "Aivan eri kohta",
+          kind: "info" as const,
+          date: "",
+          date_label: "",
+          date_label_fi: "",
+          time: "",
+          note: "",
+          note_fi: "",
+          quote: "gymnastikkläder",
+        },
+      ],
+      uncertain: [],
+      usage: [],
+      dropped: [],
+      rescuedFor: [],
+    }),
+  } as unknown as Deps;
+  const state2 = await run({ ...deps, ...paths });
+  const texts = state2.children[0]!.items.map((i) => i.sv.text);
+  assert.ok(texts.includes("Post 0"), `anslagets utsaga raderades (kvar: ${texts.join(", ")})`);
 });
 
 await check("två läxor med samma lydelse på olika dagar blir två", async () => {
