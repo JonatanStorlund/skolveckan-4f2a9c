@@ -41,39 +41,6 @@ jobs:
           key: skolveckan-state-${{ github.run_id }}
           restore-keys: skolveckan-state-
 
-      # ENGÅNGSMIGRERING (tas bort efter en lyckad körning): purga annonsposter
-      # och släpp de senaste dygnens meddelandeposter, så att veckans brev — med
-      # veckoschema-dokumentet — omextraheras under de nya reglerna. Äldre
-      # poster skyddas: seen härleds ur deras messageId och de köps inte om.
-      - name: Migrera tillståndet (engång)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          node --input-type=module -e '
-            import { readFileSync, writeFileSync, existsSync } from "node:fs";
-            if (!existsSync("data/oversikt.json")) { console.log("inget tillstånd — hoppar över"); process.exit(0); }
-            const s = JSON.parse(readFileSync("data/oversikt.json", "utf8"));
-            const ad = /orkesterisoittimia|livs-kierro/i;
-            const isAd = (it) => ad.test(it.sv?.text ?? "") || ad.test(it.fi?.text ?? "") || ad.test(it.quote ?? "");
-            const cutoff = "2026-08-27";
-            const recent = (it) => (it.messageId ?? 0) > 0 && (it.addedOn ?? "") >= cutoff;
-            let ads = 0, dropped = 0;
-            const prune = (rows) => rows.filter((it) => {
-              if (isAd(it)) { ads += 1; return false; }
-              if (recent(it)) { dropped += 1; return false; }
-              return true;
-            });
-            s.shared = prune(s.shared ?? []);
-            s.sharedUncertain = prune(s.sharedUncertain ?? []);
-            for (const c of s.children ?? []) {
-              c.items = prune(c.items ?? []);
-              c.uncertain = prune(c.uncertain ?? []);
-            }
-            s.seen = [];
-            s.attempts = {};
-            writeFileSync("data/oversikt.json", JSON.stringify(s, null, 2) + "\n");
-            console.log(`migrerat: ${ads} annonspost(er) purgade, ${dropped} färska poster släppta för omextrahering`);
-          '
-
       - name: Hämta ur Wilma och extrahera nytt
         env:
           WILMA_BASE_URL: https://jakobstad.inschool.fi
