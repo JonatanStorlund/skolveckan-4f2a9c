@@ -331,6 +331,60 @@ check("tomma veckan pekar på bandet redan vid första laddningen", () => {
   }
 });
 
+// --- Skyldigheter utan dag, och vem som offras när veckan kapas ------------
+
+// "Packa mellanmål" låg i "Bra att veta" bland trivia. En skyldighet utan dag
+// är fortfarande en skyldighet: den hör i en synlig grupp, inte bakom ett tryck.
+check("odaterad skyldighet syns i Att göra, inte i lådan", () => {
+  const w = open("2026-08-21");
+  const todo = itemsIn(w, "todo", "nellie");
+  assert.ok(
+    todo.some((i) => i.text.startsWith("Packa mellanmål")),
+    `mellanmålet saknas i Att göra: ${JSON.stringify(todo)}`,
+  );
+  const info = itemsIn(w, "info", "nellie");
+  assert.ok(
+    !info.some((i) => i.text.startsWith("Packa mellanmål")),
+    "mellanmålet ligger kvar i Bra att veta",
+  );
+  const group = w.document.querySelector('section.kid[data-kid="nellie"] .group[data-group="todo"]');
+  assert.ok(group && !group.hidden, "Att göra-gruppen är gömd");
+  assert.equal(group.tagName, "SECTION", "Att göra renderades som en fällbar låda");
+});
+
+check("en odaterad skyldighet försvinner inte när dagarna går", () => {
+  // Odaterat städas av TTL i daily.ts, inte av sidan: den får inte gömma den.
+  const todo = itemsIn(open("2026-08-26"), "todo", "nellie");
+  assert.ok(todo.some((i) => i.text.startsWith("Packa mellanmål")), "mellanmålet föll bort");
+});
+
+// Fyra evenemang samma dag åt upp hela veckotaket och sköt ut veckans enda
+// "ta med" i lådan. Taket ska offra det billigaste, inte det som står först.
+check("veckotaket offrar evenemang före skyldigheter", () => {
+  const w = open("2026-08-21");
+  const week = itemsIn(w, "week", "colin");
+  assert.equal(week.length, 4, `veckan har ${week.length} poster, förväntade taket 4`);
+  const kinds = [...w.document.querySelectorAll(
+    'section.kid[data-kid="colin"] .group[data-group="week"] li[data-kind]',
+  )].filter((li) => !li.hidden).map((li) => li.dataset.kind);
+  assert.ok(kinds.includes("ta_med"), `skyldigheten trängdes ut: ${kinds.join(", ")}`);
+  assert.ok(kinds.includes("ingen_skola"), `lediga dagen trängdes ut: ${kinds.join(", ")}`);
+});
+
+check("det som inte får plats i veckan hamnar i Viktiga datum, inte i lådan", () => {
+  const w = open("2026-08-21");
+  const later = itemsIn(w, "later", "colin");
+  assert.ok(later.length >= 2, `bara ${later.length} poster i Viktiga datum`);
+  const info = itemsIn(w, "info", "colin");
+  assert.ok(
+    !info.some((i) => i.date),
+    `en daterad post begravdes i Bra att veta: ${JSON.stringify(info)}`,
+  );
+  // Ordningen i Viktiga datum är kalendern, inte postordningen.
+  const dates = later.map((i) => i.date || "");
+  assert.deepEqual(dates, [...dates].sort(), `Viktiga datum är osorterat: ${dates.join(", ")}`);
+});
+
 console.log(results.join("\n"));
 console.log(
   process.exitCode
