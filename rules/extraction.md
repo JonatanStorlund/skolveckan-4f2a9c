@@ -22,6 +22,8 @@ RULES
 
 4b. The school week is Monday to Friday. A resolved date that lands on a Saturday or Sunday is nearly always a misreading — count again from the send date. Keep a weekend date only when the message itself names a weekend day ("på lördag", "lauantaina") or an event that plainly falls on one; otherwise leave the date empty rather than pointing at a day with no school.
 
+4c. An obligation that REPEATS has no single date: a daily snack, a gym kit every Wednesday, a reading book that stays in the desk all week. Leave 'date' empty and put the rhythm in 'note' ("Varje skoldag" / "Joka koulupäivä", "Varje onsdag" / "Joka keskiviikko"). Never pick one day out of a recurring obligation, and never drop it for lacking a date — an undated line is read as standing until further notice, so the parent must be able to tell a repeating duty from a one-off whose day is simply unknown.
+
 5. 'date_label' is short Swedish, day-month with no year: "tis 26.8". A range: "26.8-28.8". 'date_label_fi' is the Finnish form, which uses different weekday abbreviations and a trailing dot on the day: "ti 26.8.", range "26.8.-28.8.". Swedish weekdays: mån, tis, ons, tor, fre, lör, sön. Finnish weekdays: ma, ti, ke, to, pe, la, su. Never put a Finnish abbreviation in the Swedish label or the other way round.
 
 6. 'time' only when the message gives clock times. Otherwise empty. It is not translated — "08:15-12:00" reads the same in both languages.

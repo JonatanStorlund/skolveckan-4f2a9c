@@ -148,10 +148,12 @@ function bucketOf(item) {
   if (item.date && item.date < TODAY) return "past";
   if (item.kind === "laxa") return "laxor";
   if (item.kind === "bokning") return "booking";
-  if (!item.date) return "info";
   // info hamnar alltid i dropdownen, även daterad: en upplysning är inte en
   // uppgift, och de var halva sidans volym.
   if (item.kind === "info") return "info";
+  // Odaterad men inte info: en skyldighet utan dag är fortfarande en
+  // skyldighet. "Packa mellanmål" låg i lådan bland trivia — den ska synas.
+  if (!item.date) return "todo";
   if (item.date <= WEEK_END) return "week";
   return "later";
 }
@@ -253,20 +255,41 @@ function dayHeadMarkup(iso) {
   );
 }
 
-/** Tak på veckan: sidan finns för att vara kort. Resten hamnar i dropdownen. */
+/** Tak på veckan: sidan finns för att vara kort. Resten flyttas till Viktiga datum. */
 const WEEK_LIMIT = 4;
+
 /** Tak på lådorna. Utan tak blir de en andra sida i stället för ett uppslag. */
 const DRAWER_LIMIT = 6;
 
+/**
+ * Vem som får plats när veckan kapas — ordnat efter vad det kostar att missa
+ * raden. Att stå utanför en låst skola väger tyngre än en missad utflykt.
+ *
+ * Skilt från KIND_RANK i webbläsaren, som ordnar raderna inom en dag: det här
+ * avgör vilka rader som alls får plats. Utan det trängde fyra likadana
+ * evenemang samma dag ut veckans enda "ta med".
+ */
+const CAP_RANK = ["ingen_skola", "andrad_tid", "ta_med", "betalning", "deadline", "evenemang", "info"];
+const capRank = (item) => {
+  const i = CAP_RANK.indexOf(item.kind);
+  return i === -1 ? CAP_RANK.length : i;
+};
+const byDate = (a, b) => (a.date || "").localeCompare(b.date || "") || capRank(a) - capRank(b);
+
 function childMarkup(child, first) {
-  const buckets = { week: [], booking: [], laxor: [], later: [], exams: [], info: [] };
+  const buckets = { week: [], todo: [], booking: [], laxor: [], later: [], exams: [], info: [] };
   const items = dedupe(child.items);
 
-  const weekAll = items
-    .filter((item) => bucketOf(item) === "week")
-    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  const weekItems = weekAll.slice(0, WEEK_LIMIT);
-  const overflow = weekAll.slice(WEEK_LIMIT);
+  // Vilka rader som får plats avgörs av vad det kostar att missa dem; vilka
+  // som visas först av kalendern. Två skilda frågor, två skilda ordningar.
+  const weekAll = items.filter((item) => bucketOf(item) === "week");
+  const ranked = [...weekAll].sort(
+    (a, b) => capRank(a) - capRank(b) || (a.date || "").localeCompare(b.date || ""),
+  );
+  const weekItems = ranked.slice(0, WEEK_LIMIT).sort(byDate);
+  // Det som inte fick plats är daterat och angår fortfarande någon. Förr föll
+  // det ner i "Bra att veta" och var i praktiken borta.
+  const overflow = ranked.slice(WEEK_LIMIT);
   let lastDate = null;
   for (const item of weekItems) {
     if (item.date !== lastDate) {
@@ -276,13 +299,17 @@ function childMarkup(child, first) {
     buckets.week.push(itemMarkup(item));
   }
 
+  // Framåt-listan sorteras: den byggdes förr i postordning, så ett datum i
+  // november kunde stå före ett i september.
+  const laterAll = [...items.filter((item) => bucketOf(item) === "later"), ...overflow].sort(byDate);
+  buckets.later = laterAll.map(itemMarkup);
+
   // Lådorna får enkla rader; veckan, prov och framåt behåller etiketterna.
   items.forEach((item) => {
     const bucket = bucketOf(item);
-    if (bucket === "past" || bucket === "week") return;
+    if (bucket === "past" || bucket === "week" || bucket === "later") return;
     buckets[bucket].push(bucket === "info" || bucket === "laxor" ? plainMarkup(item) : itemMarkup(item));
   });
-  for (const item of overflow) buckets.info.push(plainMarkup(item));
   buckets.info = buckets.info.slice(0, DRAWER_LIMIT);
   buckets.laxor = buckets.laxor.slice(0, DRAWER_LIMIT);
   child.exams.forEach((exam) => buckets.exams.push(examItem(exam)));
@@ -327,6 +354,7 @@ function childMarkup(child, first) {
     `      <h2 class="sr-only">${esc(child.name)}</h2>`,
     `      <p class="where">${esc(child.school)} · ${esc(child.className)}</p>`,
     group("week", "Närmaste veckan", "Lähin viikko", buckets.week, emptyWeek),
+    group("todo", "Att göra", "Hoidettavat", buckets.todo),
     group("booking", "Boka tid", "Varaa aika", buckets.booking),
     group("later", "Viktiga datum", "Tärkeät päivät", buckets.later),
     group("exams", "Prov", "Kokeet", buckets.exams),
@@ -554,10 +582,18 @@ ${table(strings.fi)}
       // Speglar bucketOf() i render.mjs. Avvek de, flyttade omgrupperingen
       // tillbaka det renderaren just hade sorterat bort.
       if (li.dataset.kind === "info") return "info";
-      if (!date) return "info";
+      // Odaterad skyldighet: syns, inte gömd i lådan bland trivia.
+      if (!date) return "todo";
       if (date <= weekEndIso) return "week";
       return "later";
     }
+
+    /* Speglar CAP_RANK i render.mjs: vem som får plats när veckan kapas. */
+    const CAP_RANK = ["ingen_skola", "andrad_tid", "ta_med", "betalning", "deadline", "evenemang", "info"];
+    const capRank = (li) => {
+      const i = CAP_RANK.indexOf(li.dataset.kind);
+      return i === -1 ? CAP_RANK.length : i;
+    };
 
     /* Inom en dag: packa väskan före läxan. Ordningen speglar morgonen. */
     const KIND_RANK = ["ta_med", "laxa", "betalning", "deadline", "andrad_tid", "ingen_skola", "evenemang", "bokning", "info"];
@@ -569,6 +605,7 @@ ${table(strings.fi)}
     function regroup(panel, words) {
       const groups = {
         week: panel.querySelector('.group[data-group="week"]'),
+        todo: panel.querySelector('.group[data-group="todo"]'),
         booking: panel.querySelector('.group[data-group="booking"]'),
         later: panel.querySelector('.group[data-group="later"]'),
         exams: panel.querySelector('.group[data-group="exams"]'),
@@ -592,16 +629,28 @@ ${table(strings.fi)}
       if (weekList) {
         for (const old of [...weekList.querySelectorAll("li.dayhead")]) old.remove();
         const live = [...weekList.querySelectorAll("li[data-kind]")].filter((li) => !li.hidden);
-        live.sort(
-          (a, b) =>
-            (a.dataset.date || "").localeCompare(b.dataset.date || "") || rankOf(a) - rankOf(b),
-        );
         // Taket sätts HÄR, inte bara vid rendering: omgrupperingen kör vid varje
         // visning och tog annars tillbaka precis det renderaren sorterat bort.
         const WEEK_LIMIT = 4;
-        const infoList = groups.info && groups.info.querySelector("ul");
-        const shown = live.slice(0, WEEK_LIMIT);
-        if (infoList) for (const li of live.slice(WEEK_LIMIT)) infoList.append(li);
+        // Vilka som får plats: efter vad det kostar att missa dem. Vilka som
+        // visas först: efter kalendern. Två frågor, två ordningar.
+        const ranked = [...live].sort(
+          (a, b) =>
+            capRank(a) - capRank(b) ||
+            (a.dataset.date || "").localeCompare(b.dataset.date || ""),
+        );
+        const byDay = (a, b) =>
+          (a.dataset.date || "").localeCompare(b.dataset.date || "") || rankOf(a) - rankOf(b);
+        const shown = ranked.slice(0, WEEK_LIMIT).sort(byDay);
+        // Det som inte får plats är daterat: till Viktiga datum, inte ner i
+        // lådan där det i praktiken var borta.
+        const laterList = groups.later && groups.later.querySelector("ul");
+        if (laterList) {
+          const spill = ranked.slice(WEEK_LIMIT);
+          for (const li of spill) laterList.append(li);
+          const all = [...laterList.querySelectorAll("li[data-kind]")].sort(byDay);
+          for (const li of all) laterList.append(li);
+        }
 
         let lastDate = null;
         for (const li of shown) {
@@ -646,7 +695,7 @@ ${table(strings.fi)}
         if (hint) hint.hidden = shown.length > 0 || !sharedLive;
       }
 
-      for (const name of ["booking", "later", "exams"]) {
+      for (const name of ["todo", "booking", "later", "exams"]) {
         const g = groups[name];
         if (!g) continue;
         g.hidden = ![...g.querySelectorAll("li[data-kind]")].some((li) => !li.hidden);
@@ -754,12 +803,12 @@ writeFileSync(path.join(here, "oversikt.html"), page);
 
 const counts = data.children
   .map((c) => {
-    const b = { week: 0, later: 0, info: 0 };
+    const b = { week: 0, todo: 0, later: 0, info: 0 };
     for (const item of c.items) {
       const bucket = bucketOf(item);
       if (bucket in b) b[bucket] += 1;
     }
-    return `${c.name} ${b.week}v/${b.later}fram/${c.exams.length}prov/${b.info}info`;
+    return `${c.name} ${b.week}v/${b.todo}göra/${b.later}fram/${c.exams.length}prov/${b.info}info`;
   })
   .join(" · ");
 
